@@ -1,0 +1,84 @@
+name: Release
+
+# A successful CI run on main releases the version declared by the project. The
+# workflow creates the matching tag; maintainers never create release tags by hand.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: purview-build-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Read and validate release version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(dotnet msbuild src/Purview.Build/Purview.Build.csproj -getProperty:Version -nologo)
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Project Version '$VERSION' is not SemVer." >&2
+            exit 1
+          fi
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Version $VERSION is already released as $TAG."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Pack release
+        if: steps.version.outputs.release == 'true'
+        run: >-
+          dotnet pack src/Purview.Build/Purview.Build.csproj
+          --configuration Release
+          --output artifacts
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Verify package version
+        if: steps.version.outputs.release == 'true'
+        shell: bash
+        run: test -f "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
+
+      - name: Publish to Purview-Dev internal NuGet registry
+        if: steps.version.outputs.release == 'true'
+        run: >-
+          dotnet nuget push
+          "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
+          --source "https://nuget.pkg.github.com/purview-dev/index.json"
+          --api-key "${{ github.token }}"
+          --skip-duplicate
+
+      - name: Tag released version and create release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${{ steps.version.outputs.tag }}"
+          "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
+          --target "${{ github.event.workflow_run.head_sha }}"
+          --title "${{ steps.version.outputs.tag }}"
+          --generate-notes

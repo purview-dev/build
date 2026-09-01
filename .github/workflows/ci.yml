@@ -1,0 +1,35 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore
+        run: dotnet restore src/Purview.Build/Purview.Build.csproj --locked-mode
+      - name: Build gate
+        run: dotnet build src/Purview.Build/Purview.Build.csproj --configuration Release --no-restore --warnaserror
+      - name: Pack gate
+        run: dotnet pack src/Purview.Build/Purview.Build.csproj --configuration Release --no-build --output artifacts
+      - name: Install packed tool
+        shell: bash
+        run: |
+          VERSION=$(dotnet msbuild src/Purview.Build/Purview.Build.csproj -getProperty:Version -nologo)
+          dotnet tool install Purview.Build --tool-path "$RUNNER_TEMP/purview-build" --add-source artifacts --version "$VERSION"
+          echo "$RUNNER_TEMP/purview-build" >> "$GITHUB_PATH"
+      - name: Installed-tool smoke gate
+        run: >-
+          purview-build
+          --Build:Solution=src/Purview.Build/Purview.Build.csproj
+          --Build:VersionFile=testassets/version.json
+          --Build:Lint=false
+          --Build:Test=false
+          --Build:Pack=false
