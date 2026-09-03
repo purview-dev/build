@@ -23,9 +23,25 @@ In both models the reusable `purview-release.yml` workflow reads `package.json`'
 
 This repository dogfoods the shared tool. CI performs locked restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself.
 
-On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to the Purview-Dev GitHub Packages registry, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to the registry, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. The tool therefore owns tagging; maintainers must not push release tags manually.
+On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using the `NUGET_APIKEY` secret, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. The tool therefore owns tagging; maintainers must not push release tags manually.
 
-GitHub creates the package as private on its first publication. An organization owner must make the package Internal once in the package settings so Purview-Dev members can consume it, and must permit internal package creation in the organization's package policy. NuGet versions are immutable; `--skip-duplicate` makes recovery safe if publication succeeded but tagging was interrupted.
+GitHub creates NuGet packages as private on first publication. To make sure every package is **Internal** (visible to all Purview-Dev members), set both:
+
+1. **Organization default (prevents future private packages)** — org owner:
+   GitHub → purview-dev → Settings → Packages → **Package Creation** → select **Internal**.
+   New NuGet packages published by organization members then default to Internal.
+2. **Existing packages already published while private** — org owner, per package:
+   `https://github.com/orgs/purview-dev/packages/nuget/package/<name>` → **Package settings** → **Danger Zone** → **Change visibility** → **Internal**.
+
+   Or via the CLI/API for every package on the registry:
+
+   ```shell
+   gh api --method PATCH "/orgs/purview-dev/packages/nuget/Purview.Build" -f visibility=internal
+   ```
+
+   Public packages cannot be made private again; private → internal is safe.
+
+NuGet versions are immutable; `--skip-duplicate` makes recovery safe if publication succeeded but tagging was interrupted.
 
 ## For local validation
 

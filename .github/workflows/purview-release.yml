@@ -100,22 +100,11 @@ jobs:
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Authenticate to Purview-Dev packages
-        if: steps.version.outputs.should_release == 'true'
-        run: >-
-          dotnet nuget add source
-          "https://nuget.pkg.github.com/purview-dev/index.json"
-          --name purview-dev
-          --username "${{ github.actor }}"
-          --password "${{ github.token }}"
-          --store-password-in-clear-text
-
       - name: Install pinned shared build
         if: steps.version.outputs.should_release == 'true'
         run: >-
           dotnet tool install Purview.Build
           --tool-path "${{ runner.temp }}/purview-build"
-          --source "https://nuget.pkg.github.com/purview-dev/index.json"
           --version "${{ inputs.build-version }}"
 
       - name: Run release pipeline
