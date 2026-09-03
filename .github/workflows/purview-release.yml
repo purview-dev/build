@@ -1,4 +1,4 @@
-name: Purview Build
+name: Purview Release
 
 on:
   workflow_call:
@@ -13,10 +13,21 @@ on:
         default: 10.0.x
         type: string
       release-mode:
-        description: Release__Mode passed to the pipeline (None, NuGet, GitHubRelease, LocalNuGet).
+        description: Release__Mode passed to the pipeline (NuGet or GitHubRelease).
         required: false
-        default: None
+        default: NuGet
         type: string
+      release-branch:
+        description: >-
+          Branch that triggers this release (main or release). Used only for the concurrency group.
+        required: false
+        default: main
+        type: string
+      trusted-publishing:
+        description: Use NuGet Trusted Publishing (no API key) instead of an API key.
+        required: false
+        default: false
+        type: boolean
       run-tests:
         description: Enable discovered tests (Build__RunTests).
         required: false
@@ -41,10 +52,11 @@ on:
         description: Test filter (Build__TestFilter), e.g. "/*/*/*/*[Category=Unit]".
         required: false
         type: string
-      test-projects:
-        description: Comma-separated test project names/globs to run (Build__TestProjects).
+      upload-artifacts:
+        description: Upload artifacts folder files as GitHub release assets (Release__UploadArtifacts).
         required: false
-        type: string
+        default: false
+        type: boolean
     secrets:
       NUGET_APIKEY:
         required: false
@@ -53,9 +65,13 @@ permissions:
   contents: write
   packages: read
 
+concurrency:
+  group: purview-release-${{ inputs.release-branch }}
+  cancel-in-progress: false
+
 jobs:
-  build:
-    name: Build
+  release:
+    name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -68,7 +84,24 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
+      - name: Check for version bump
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Version $VERSION is already tagged as $TAG. Skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version $VERSION detected. Releasing $TAG."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Authenticate to Purview-Dev packages
+        if: steps.version.outputs.should_release == 'true'
         run: >-
           dotnet nuget add source
           "https://nuget.pkg.github.com/purview-dev/index.json"
@@ -78,13 +111,15 @@ jobs:
           --store-password-in-clear-text
 
       - name: Install pinned shared build
+        if: steps.version.outputs.should_release == 'true'
         run: >-
           dotnet tool install Purview.Build
           --tool-path "${{ runner.temp }}/purview-build"
           --source "https://nuget.pkg.github.com/purview-dev/index.json"
           --version "${{ inputs.build-version }}"
 
-      - name: Run shared build
+      - name: Run release pipeline
+        if: steps.version.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # Consumer repos historically store the key under NUGET__APIKEY; some use NUGET_APIKEY.
@@ -92,10 +127,11 @@ jobs:
           NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
           NUGET_API_KEY: ${{ secrets.NUGET__APIKEY }}
           Release__Mode: ${{ inputs.release-mode }}
+          Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
+          NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
           Build__RunTests: ${{ inputs.run-tests }}
           Build__RunLint: ${{ inputs.run-lint }}
           Build__RunPack: ${{ inputs.run-pack }}
           Build__ValidatePack: ${{ inputs.validate-pack }}
           Build__TestFilter: ${{ inputs.test-filter }}
-          Build__TestProjects: ${{ inputs.test-projects }}
         run: "${{ runner.temp }}/purview-build/purview-build"

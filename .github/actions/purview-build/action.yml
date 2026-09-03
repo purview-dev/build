@@ -1,0 +1,48 @@
+name: Purview Build
+
+description: >-
+  Installs the pinned Purview.Build dotnet tool from the Purview-Dev GitHub Packages feed and runs
+  it against the repository. Configuration flows through job environment variables (Build__*,
+  Release__*, NuGet__*, PublishLocalNuGet__*) and secrets (NUGET_APIKEY, GITHUB_TOKEN,
+  LOCAL_NUGET_FEED_PATH).
+
+inputs:
+  build-version:
+    description: Exact Purview.Build package version to run.
+    required: true
+  dotnet-version:
+    description: .NET SDK used by the consuming repository.
+    required: false
+    default: 10.0.x
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Authenticate to Purview-Dev packages
+      shell: bash
+      run: >-
+        dotnet nuget add source
+        "https://nuget.pkg.github.com/purview-dev/index.json"
+        --name purview-dev
+        --username "${{ github.actor }}"
+        --password "${{ github.token }}"
+        --store-password-in-clear-text
+
+    - name: Install pinned shared build
+      shell: bash
+      run: >-
+        dotnet tool install Purview.Build
+        --tool-path "${{ runner.temp }}/purview-build"
+        --source "https://nuget.pkg.github.com/purview-dev/index.json"
+        --version "${{ inputs.build-version }}"
+
+    - name: Run shared build
+      shell: bash
+      run: "${{ runner.temp }}/purview-build/purview-build"
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
