@@ -1,0 +1,84 @@
+using ModularPipelines.Attributes;
+using ModularPipelines.Configuration;
+using ModularPipelines.Context;
+using ModularPipelines.GitHub.Extensions;
+using ModularPipelines.Models;
+using ModularPipelines.Modules;
+
+namespace Purview.Build.Modules;
+
+[ModuleCategory("Release")]
+[DependsOn<PublishNuGetModule>]
+[DependsOn<ValidatePackModule>]
+[DependsOn<VersionModule>]
+public class CreateGitHubReleaseModule(
+	IOptions<ReleaseSettings> releaseSettings,
+	IOptions<GitHubSettings> gitSettings,
+	IOptions<BuildSettings> buildSettings
+) : Module<Release?>
+{
+	protected override ModuleConfiguration Configure() =>
+		ModuleConfiguration
+			.Create()
+			.WithSkipWhen(_ =>
+				releaseSettings.Value.Mode is not (ReleaseMode.NuGet or ReleaseMode.GitHubRelease)
+				|| string.IsNullOrWhiteSpace(gitSettings.Value.GetGitHubToken())
+					? SkipDecision.Skip(
+						"GitHub release creation is disabled. Set Release__Mode=NuGet (or GitHubRelease) and GITHUB_TOKEN to create a GitHub release."
+					)
+					: SkipDecision.DoNotSkip
+			)
+			.Build();
+
+	protected override async Task<Release?> ExecuteAsync(IModuleContext context, CancellationToken cancellationToken)
+	{
+		var versionResult = await context.GetModule<VersionModule>();
+		var version =
+			versionResult.ValueOrDefault
+			?? throw new InvalidOperationException("The version was not produced by the version module.");
+
+		var tag = $"v{version}";
+
+		var repositoryIdString = context.GitHub().EnvironmentVariables.RepositoryId;
+		if (!long.TryParse(repositoryIdString, out var repositoryId))
+		{
+			throw new InvalidOperationException(
+				$"Failed to parse RepositoryId '{repositoryIdString}' as a valid long integer."
+			);
+		}
+
+		// Create a new release on GitHub with the specified tag and generate release notes
+		var release = await context
+			.GitHub()
+			.Client.Repository.Release.Create(
+				repositoryId,
+				new NewRelease(tag) { Name = tag, GenerateReleaseNotes = true }
+			);
+
+		if (releaseSettings.Value.UploadArtifacts)
+		{
+			var artifactsFolder = buildSettings.Value.ArtifactsFolder;
+			if (Directory.Exists(artifactsFolder))
+			{
+				foreach (var file in Directory.EnumerateFiles(artifactsFolder, "*.*", SearchOption.TopDirectoryOnly))
+				{
+					await using var stream = File.OpenRead(file);
+					await context
+						.GitHub()
+						.Client.Repository.Release.UploadAsset(
+							release,
+							new ReleaseAssetUpload
+							{
+								FileName = Path.GetFileName(file),
+								ContentType = "application/octet-stream",
+								RawData = stream,
+							}
+						);
+					context.Logger.LogInformation("Uploaded release asset {File}.", Path.GetFileName(file));
+				}
+			}
+		}
+
+		return release;
+	}
+}

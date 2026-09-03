@@ -1,0 +1,14 @@
+{
+	"Build": {
+		"Solution": "src/Purview.Build/Purview.Build.csproj",
+		"TestRoot": "src/tests",
+		"TestPatterns": "*Tests.csproj",
+		"RunTests": false,
+		"RunLint": false,
+		"RunPack": true,
+		"ValidatePack": false
+	},
+	"Release": {
+		"Mode": "None"
+	}
+}

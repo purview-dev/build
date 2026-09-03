@@ -1,11 +1,11 @@
 name: Release
 
-# A successful CI run on main releases the version declared by the project. The
-# workflow creates the matching tag; maintainers never create release tags by hand.
+# The project builds itself: this workflow compiles and installs the tool from the
+# current source, then runs it against this repository. The tool therefore performs
+# the release build/test/pack/validate steps and tags and publishes itself (v{version}
+# release + NuGet push) exactly like every other purview-dev repository.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
 
 permissions:
@@ -18,12 +18,11 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -35,9 +34,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(dotnet msbuild src/Purview.Build/Purview.Build.csproj -getProperty:Version -nologo)
+          VERSION=$(node -p "require('./package.json').version")
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Project Version '$VERSION' is not SemVer." >&2
+            echo "package.json version '$VERSION' is not SemVer." >&2
             exit 1
           fi
           TAG="v$VERSION"
@@ -50,35 +49,40 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Pack release
+      - name: Restore
+        if: steps.version.outputs.release == 'true'
+        run: dotnet restore src/Purview.Build/Purview.Build.csproj --locked-mode
+
+      - name: Build gate
+        if: steps.version.outputs.release == 'true'
+        run: dotnet build src/Purview.Build/Purview.Build.csproj --configuration Release --no-restore --warnaserror
+
+      - name: Pack tool from source
         if: steps.version.outputs.release == 'true'
         run: >-
           dotnet pack src/Purview.Build/Purview.Build.csproj
-          --configuration Release
-          --output artifacts
+          --configuration Release --no-build --output artifacts
           -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:PackageVersion=${{ steps.version.outputs.version }}
 
-      - name: Verify package version
-        if: steps.version.outputs.release == 'true'
-        shell: bash
-        run: test -f "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
-
-      - name: Publish to Purview-Dev internal NuGet registry
+      - name: Install packed tool
         if: steps.version.outputs.release == 'true'
         run: >-
-          dotnet nuget push
-          "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
-          --source "https://nuget.pkg.github.com/purview-dev/index.json"
-          --api-key "${{ github.token }}"
-          --skip-duplicate
+          dotnet tool install Purview.Build
+          --tool-path "$RUNNER_TEMP/purview-build"
+          --add-source artifacts
+          --version "${{ steps.version.outputs.version }}"
 
-      - name: Tag released version and create release
+      - name: Run release pipeline (builds, publishes and tags itself)
         if: steps.version.outputs.release == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "${{ steps.version.outputs.tag }}"
-          "artifacts/Purview.Build.${{ steps.version.outputs.version }}.nupkg"
-          --target "${{ github.event.workflow_run.head_sha }}"
-          --title "${{ steps.version.outputs.tag }}"
-          --generate-notes
+          GITHUB_TOKEN: ${{ github.token }}
+          Release__Mode: NuGet
+          Release__UploadArtifacts: "true"
+          NuGet__FeedUrl: https://nuget.pkg.github.com/purview-dev/index.json
+          NuGet__ApiKey: ${{ github.token }}
+          Build__RunTests: "false"
+          Build__RunLint: "false"
+          Build__ValidatePack: "false"
+        run: "$RUNNER_TEMP/purview-build/purview-build"

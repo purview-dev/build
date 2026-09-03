@@ -1,24 +1,49 @@
 using Purview.Build;
 
-var root = Directory.GetCurrentDirectory();
-var builder = Pipeline.CreateBuilder(args);
-builder.Configuration
-    .AddJsonFile(Path.Combine(root, "purview-build.json"), optional: true)
-    .AddEnvironmentVariables()
-    .AddCommandLine(args);
+var pipelineDirectory = PipelineProjectDirectory.Find();
+var repositoryRoot = PathHelpers.FindRepositoryRoot(Environment.CurrentDirectory);
 
-builder.Services.Configure<BuildOptions>(builder.Configuration.GetSection("Build"));
-builder.Services.Configure<ReleaseOptions>(builder.Configuration.GetSection("Release"));
-builder.Services.AddSingleton<IGitHubClient>(services =>
+var builder = Pipeline.CreateBuilder(args);
+
+builder
+	.Configuration.AddJsonFile(Path.Combine(pipelineDirectory, "appsettings.json"), optional: false)
+	.AddJsonFile(Path.Combine(repositoryRoot, "purview-build.json"), optional: true)
+	.AddEnvironmentVariables()
+	.AddCommandLine(args);
+
+builder.Services.Configure<BuildSettings>(builder.Configuration.GetSection(BuildSettings.SectionName));
+builder.Services.Configure<NuGetSettings>(builder.Configuration.GetSection(NuGetSettings.SectionName));
+builder.Services.Configure<PackValidationSettings>(
+	builder.Configuration.GetSection(PackValidationSettings.SectionName)
+);
+builder.Services.Configure<PublishLocalNuGetSettings>(
+	builder.Configuration.GetSection(PublishLocalNuGetSettings.SectionName)
+);
+builder.Services.Configure<GitHubSettings>(builder.Configuration.GetSection(GitHubSettings.SectionName));
+builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection(ReleaseSettings.SectionName));
+
+builder.Services.AddSingleton<IGitHubClient>(serviceProvider =>
 {
-    var token = services.GetRequiredService<IOptions<ReleaseOptions>>().Value.GitHubToken
-        ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? string.Empty;
-    return new GitHubClient(new ProductHeaderValue("Purview.Build"), new InMemoryCredentialStore(new Credentials(token)));
+	var settings = serviceProvider.GetRequiredService<IOptions<GitHubSettings>>();
+	var accessToken = settings.Value.GetGitHubToken();
+
+	return new GitHubClient(new(settings.Value.ProductHeader), new InMemoryCredentialStore(new(accessToken)));
 });
 
-builder.AddModule<VersionModule>().AddModule<RestoreModule>().AddModule<BuildModule>()
-    .AddModule<LintModule>().AddModule<TestModule>().AddModule<PackModule>()
-    .AddModule<PublishModule>().AddModule<GitHubReleaseModule>();
+Environment.CurrentDirectory = repositoryRoot;
+
+builder
+	.AddModule<VersionModule>()
+	.AddModule<RestoreModule>()
+	.AddModule<BuildModule>()
+	.AddModule<LintModule>()
+	.AddModule<RunTestsModule>()
+	.AddModule<PackModule>()
+	.AddModule<ValidatePackModule>()
+	.AddModule<PublishNuGetModule>()
+	.AddModule<PublishLocalNuGetModule>()
+	.AddModule<CreateGitHubReleaseModule>();
 
 await using var pipeline = await builder.BuildAsync();
+
 await pipeline.RunAsync();
