@@ -50,7 +50,7 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
   packages: read
 
 jobs:
@@ -68,20 +68,10 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
-      - name: Authenticate to Purview-Dev packages
-        run: >-
-          dotnet nuget add source
-          "https://nuget.pkg.github.com/purview-dev/index.json"
-          --name purview-dev
-          --username "${{ github.actor }}"
-          --password "${{ github.token }}"
-          --store-password-in-clear-text
-
       - name: Install pinned shared build
         run: >-
           dotnet tool install Purview.Build
           --tool-path "${{ runner.temp }}/purview-build"
-          --source "https://nuget.pkg.github.com/purview-dev/index.json"
           --version "${{ inputs.build-version }}"
 
       - name: Run shared build

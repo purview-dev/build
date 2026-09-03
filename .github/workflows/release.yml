@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 concurrency:
   group: purview-build-release
@@ -66,6 +65,16 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           -p:PackageVersion=${{ steps.version.outputs.version }}
 
+      - name: Verify NuGet API key
+        if: steps.version.outputs.release == 'true'
+        env:
+          NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
+        run: |
+          if [ -z "$NUGET_APIKEY" ]; then
+            echo "The NUGET_APIKEY secret is not set. It is required to publish Purview.Build to nuget.org." >&2
+            exit 1
+          fi
+
       - name: Install packed tool
         if: steps.version.outputs.release == 'true'
         run: >-
@@ -78,10 +87,10 @@ jobs:
         if: steps.version.outputs.release == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
           Release__Mode: NuGet
           Release__UploadArtifacts: "true"
-          NuGet__FeedUrl: https://nuget.pkg.github.com/purview-dev/index.json
-          NuGet__ApiKey: ${{ github.token }}
+          NuGet__FeedUrl: https://api.nuget.org/v3/index.json
           Build__RunTests: "false"
           Build__RunLint: "false"
           Build__ValidatePack: "false"

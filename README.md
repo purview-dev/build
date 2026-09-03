@@ -53,7 +53,7 @@ on:
 
 The reusable workflow checks whether `v{version}` (read from `package.json`) is already tagged and skips if so, so merging `main` into `release` releases exactly once.
 
-The reusable workflows authenticate to the internal feed and install the exact CLI version; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The reusable workflows install the exact CLI version from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
 ### Minimal repository setup (composite action)
 
@@ -73,7 +73,7 @@ jobs:
 ### Local use
 
 ```shell
-dotnet tool install Purview.Build --tool-path ./.tools --add-source https://nuget.pkg.github.com/purview-dev/index.json --version 0.2.0
+dotnet tool install Purview.Build --tool-path ./.tools --version 0.2.1
 ./.tools/purview-build
 ```
 
@@ -118,6 +118,6 @@ Version ───────────────┘
 
 This repository dogfoods the shared tool: CI builds and packs the tool from source, installs the generated package, then runs `purview-build` against this repository so the project builds and packs itself. Locked restore and warnings-as-errors compilation gate every pull request and merge.
 
-On a push to `main`, the release workflow rebuilds and reinstalls the tool from the current source, then runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` pointing at the Purview-Dev GitHub Packages registry, and `Release__UploadArtifacts=true`. The tool therefore publishes the immutable package to `https://nuget.pkg.github.com/purview-dev/index.json` and tags and releases itself (`v{Version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
+On a push to `main`, the release workflow rebuilds and reinstalls the tool from the current source, then runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` pointing at nuget.org, and `Release__UploadArtifacts=true`. The tool therefore publishes the immutable package to `https://api.nuget.org/v3/index.json` and tags and releases itself (`v{Version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
 
-After the first publication, an organization owner must set `Purview.Build` to **Internal** under Purview-Dev → Packages → Purview.Build → Package settings. GitHub initially creates NuGet packages as private. Also enable internal package creation under the organization's package settings if it is disabled.
+GitHub initially creates NuGet packages as private. To make sure every package is **Internal** (consumable by all Purview-Dev members), an organization owner should set the org default: Purview-Dev → Settings → Packages → **Package Creation** → **Internal**, and change any already-published package's visibility in its **Package settings** → **Danger Zone**. See [docs/releasing.md](docs/releasing.md) for the exact steps and the `gh api` alternative.
