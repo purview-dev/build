@@ -36,21 +36,7 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 				cancellationToken
 			);
 
-		var restoreResult = await Restore();
-		for (var attempt = 1; restoreResult.ExitCode != 0 && attempt < maxAttempts; attempt++)
-		{
-			context.Logger.LogWarning(
-				"dotnet tool restore failed (attempt {Attempt} of {MaxAttempts}). Retrying...",
-				attempt,
-				maxAttempts
-			);
-
-			await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-
-			restoreResult = await Restore();
-		}
-		if (restoreResult.ExitCode != 0)
-			return restoreResult;
+		var restoreResult = await RestoreWithRetryAsync(Restore, maxAttempts, context, cancellationToken);
 
 		// Restore worked, now run the linter
 		return await context.Shell.Command.ExecuteCommandLineTool(
@@ -58,5 +44,54 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 			new() { WorkingDirectory = repositoryRoot },
 			cancellationToken: cancellationToken
 		);
+	}
+
+	static async Task<CommandResult> RestoreWithRetryAsync(
+		Func<Task<CommandResult>> restore,
+		int maxAttempts,
+		IModuleContext context,
+		CancellationToken cancellationToken
+	)
+	{
+		Exception? lastException = null;
+		CommandResult? lastResult = null;
+
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			try
+			{
+				var result = await restore();
+				if (result.ExitCode == 0)
+					return result;
+
+				lastException = null;
+				lastResult = result;
+			}
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				lastException = ex;
+				lastResult = null;
+			}
+
+			if (attempt < maxAttempts)
+			{
+				context.Logger.LogWarning(
+					lastException,
+					"dotnet tool restore failed (attempt {Attempt} of {MaxAttempts}). Retrying...",
+					attempt,
+					maxAttempts
+				);
+
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+			}
+		}
+
+		if (lastException is not null)
+			throw lastException;
+
+		if (lastResult is not null)
+			throw new InvalidOperationException($"dotnet tool restore failed with exit code {lastResult.ExitCode}.");
+
+		throw new InvalidOperationException("dotnet tool restore failed.");
 	}
 }
