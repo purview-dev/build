@@ -4,6 +4,8 @@
 
 Consuming repositories own configuration; they do not own pipeline source code. Version, paths, feature switches, and release-mode selection are per-repository.
 
+[![Release](https://github.com/purview-dev/build/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/build/actions/workflows/release.yml)
+
 ## Delivery surfaces
 
 The same implementation is available three ways:
@@ -14,6 +16,14 @@ The same implementation is available three ways:
 
 ## Minimal repository setup (reusable workflow)
 
+The examples below reference the workflows at `@main`, so they always run the latest version of the workflow/action code. The `@ref` suffix is required for cross-repository references and resolves the workflow/action to a specific commit; there is no `@latest`. Pin a release tag (e.g. `@v0.2.0`) instead if you want reproducible workflow code.
+
+> **Two independent version axes.** The `@ref` selects the workflow/action *code*, while the
+> `build-version` input selects the installed `Purview.Build` *tool*. Omit `build-version` to
+> always install the latest stable tool, or pin it (e.g. `build-version: 0.2.0`) for
+> reproducibility. Mixing a pinned old `@ref` with a floating `build-version` runs newer tool
+> code through older workflow inputs.
+
 ```yaml
 # .github/workflows/pr.yml
 name: PR
@@ -22,7 +32,7 @@ on:
     branches: [main]
 jobs:
   build:
-    uses: purview-dev/build/.github/workflows/purview-build.yml@v0.2.0
+    uses: purview-dev/build/.github/workflows/purview-build.yml@main
     # `build-version` is optional; when omitted, the latest stable Purview.Build
     # from nuget.org is installed. Pin it (e.g. `build-version: 0.2.0`) for
     # reproducible builds.
@@ -67,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: purview-dev/build/.github/actions/purview-build@v0.2.0
+      - uses: purview-dev/build/.github/actions/purview-build@main
         env:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```

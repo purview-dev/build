@@ -6,7 +6,7 @@
 - Minor: additive options or modules with backward-compatible defaults.
 - Major: renamed/removed keys, changed defaults with material effects, or a required runtime upgrade.
 
-The reusable workflows and composite action default `build-version` to the latest stable `Purview.Build` release from nuget.org; omit the input to always run the newest version. Consumers that need reproducibility pin an exact version via the `build-version` input (and, for local use, `.config/dotnet-tools.json`). Automated dependency updates should open a pull request, where the consumer's normal build validates the new tool before merge. Keep the previous major supported while migrations are in progress.
+The reusable workflows and composite action are referenced with an `@ref` suffix (required for cross-repository references), which selects the workflow/action *code*: `@main` always runs the latest code, while a release tag (e.g. `@v0.2.0`) pins it for reproducibility. `build-version` is an independent axis that selects the installed `Purview.Build` *tool*; it defaults to the latest stable release from nuget.org, and consumers that need reproducibility pin an exact version via the `build-version` input (and, for local use, `.config/dotnet-tools.json`). Automated dependency updates should open a pull request, where the consumer's normal build validates the new tool before merge. Keep the previous major supported while migrations are in progress.
 
 The version is declared by the `version` field in the repository's root `package.json`. Releasing consists of bumping that field and merging the validated pull request into the release head.
 
