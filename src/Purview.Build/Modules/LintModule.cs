@@ -27,11 +27,28 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 	{
 		var repositoryRoot = PathHelpers.FindRepositoryRoot();
 		var dotnet = context.DotNet();
-		var restoreResult = await dotnet.Tool.Restore(
-			new() { Interactive = false, ToolManifest = Path.Combine(repositoryRoot, ".config", "dotnet-tools.json") },
-			new() { WorkingDirectory = repositoryRoot },
-			cancellationToken
-		);
+
+		const int maxAttempts = 3;
+		Task<CommandResult> Restore() =>
+			dotnet.Tool.Restore(
+				new() { Interactive = false, ToolManifest = Path.Combine(repositoryRoot, ".config", "dotnet-tools.json") },
+				new() { WorkingDirectory = repositoryRoot },
+				cancellationToken
+			);
+
+		var restoreResult = await Restore();
+		for (var attempt = 1; restoreResult.ExitCode != 0 && attempt < maxAttempts; attempt++)
+		{
+			context.Logger.LogWarning(
+				"dotnet tool restore failed (attempt {Attempt} of {MaxAttempts}). Retrying...",
+				attempt,
+				maxAttempts
+			);
+
+			await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+
+			restoreResult = await Restore();
+		}
 		if (restoreResult.ExitCode != 0)
 			return restoreResult;
 

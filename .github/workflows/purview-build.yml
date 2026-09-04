@@ -4,8 +4,10 @@ on:
   workflow_call:
     inputs:
       build-version:
-        description: Exact Purview.Build package version to run.
-        required: true
+        description: >-
+          Exact Purview.Build package version to run. When omitted, the latest stable version
+          from nuget.org is installed.
+        required: false
         type: string
       dotnet-version:
         description: .NET SDK used by the consuming repository.
@@ -68,11 +70,14 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
-      - name: Install pinned shared build
-        run: >-
-          dotnet tool install Purview.Build
-          --tool-path "${{ runner.temp }}/purview-build"
-          --version "${{ inputs.build-version }}"
+      - name: Install shared build
+        shell: bash
+        run: |
+          VERSION_ARGS=""
+          if [ -n "${{ inputs.build-version }}" ]; then
+            VERSION_ARGS="--version ${{ inputs.build-version }}"
+          fi
+          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
       - name: Run shared build
         env:
