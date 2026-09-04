@@ -23,8 +23,9 @@ on:
 jobs:
   build:
     uses: purview-dev/build/.github/workflows/purview-build.yml@v0.2.0
-    with:
-      build-version: 0.2.0
+    # `build-version` is optional; when omitted, the latest stable Purview.Build
+    # from nuget.org is installed. Pin it (e.g. `build-version: 0.2.0`) for
+    # reproducible builds.
     secrets: inherit
 ```
 
@@ -38,7 +39,6 @@ jobs:
   release:
     uses: purview-dev/build/.github/workflows/purview-release.yml@v0.2.0
     with:
-      build-version: 0.2.0
       release-mode: NuGet
     secrets: inherit
 ```
@@ -53,7 +53,7 @@ on:
 
 The reusable workflow checks whether `v{version}` (read from `package.json`) is already tagged and skips if so, so merging `main` into `release` releases exactly once.
 
-The reusable workflows install the exact CLI version from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
 ### Minimal repository setup (composite action)
 
@@ -64,11 +64,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: purview-dev/build/.github/actions/purview-build@v0.2.0
-        with:
-          build-version: 0.2.0
         env:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```
+
+The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org; pass an exact version to pin the build.
 
 ### Local use
 

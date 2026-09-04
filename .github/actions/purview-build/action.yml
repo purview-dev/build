@@ -1,14 +1,17 @@
 name: Purview Build
 
 description: >-
-  Installs the pinned Purview.Build dotnet tool from nuget.org and runs it against the repository.
+  Installs the Purview.Build dotnet tool from nuget.org (pinned via `build-version`, or the
+  latest stable when omitted) and runs it against the repository.
   Configuration flows through job environment variables (Build__*, Release__*, NuGet__*,
   PublishLocalNuGet__*) and secrets (NUGET_APIKEY, GITHUB_TOKEN, LOCAL_NUGET_FEED_PATH).
 
 inputs:
   build-version:
-    description: Exact Purview.Build package version to run.
-    required: true
+    description: >-
+      Exact Purview.Build package version to run. When omitted, the latest stable version
+      from nuget.org is installed.
+    required: false
   dotnet-version:
     description: .NET SDK used by the consuming repository.
     required: false
@@ -22,12 +25,14 @@ runs:
       with:
         dotnet-version: ${{ inputs.dotnet-version }}
 
-    - name: Install pinned shared build
+    - name: Install shared build
       shell: bash
-      run: >-
-        dotnet tool install Purview.Build
-        --tool-path "${{ runner.temp }}/purview-build"
-        --version "${{ inputs.build-version }}"
+      run: |
+        VERSION_ARGS=""
+        if [ -n "${{ inputs.build-version }}" ]; then
+          VERSION_ARGS="--version ${{ inputs.build-version }}"
+        fi
+        dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
     - name: Run shared build
       shell: bash
