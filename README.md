@@ -45,6 +45,10 @@ name: Release
 on:
   push:
     branches: [main]
+concurrency:
+  # Serialize releases; callers own concurrency (see docs/releasing.md).
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   release:
     uses: purview-dev/build/.github/workflows/purview-release.yml@main

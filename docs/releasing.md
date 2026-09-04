@@ -19,6 +19,16 @@ Each repository is gated by a pull-request build. Two release trigger models are
 
 In both models the reusable `purview-release.yml` workflow reads `package.json`'s `version`, skips when the `v{version}` tag already exists, and otherwise runs the pipeline with `Release__Mode` set. Because publication is idempotent (`--skip-duplicate`) and the tag is created by the workflow, re-merging `main` into `release` after a failed release is safe.
 
+The reusable workflow does **not** define a concurrency group. GitHub Actions cancels a run as a deadlock when a caller workflow and the reusable workflow it calls share the same concurrency group (the caller's `purview-release-main` collided with the reusable workflow's `purview-release-${{ inputs.release-branch }}` resolving to the same value, producing *"Canceling since a deadlock was detected for concurrency group"*). Callers must own release serialization by defining their own `concurrency` block:
+
+```yaml
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+```
+
+The `release-branch` input is retained for backward compatibility only.
+
 ## This repository's CI/CD
 
 This repository dogfoods the shared tool. CI performs locked restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself.

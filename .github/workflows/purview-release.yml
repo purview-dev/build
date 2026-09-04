@@ -21,7 +21,8 @@ on:
         type: string
       release-branch:
         description: >-
-          Branch that triggers this release (main or release). Used only for the concurrency group.
+          Branch that triggers this release (main or release). Retained for backward compatibility;
+          callers now control release serialization via their own concurrency group.
         required: false
         default: main
         type: string
@@ -66,10 +67,6 @@ on:
 permissions:
   contents: write
   packages: read
-
-concurrency:
-  group: purview-release-${{ inputs.release-branch }}
-  cancel-in-progress: false
 
 jobs:
   release:
