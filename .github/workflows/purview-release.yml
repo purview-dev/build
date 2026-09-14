@@ -83,11 +83,13 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Check for version bump
         id: version
         shell: bash
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(bun -p "require('./package.json').version")
           TAG="v$VERSION"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Version $VERSION is already tagged as $TAG. Skipping release."
@@ -124,5 +126,11 @@ jobs:
           Build__RunLint: ${{ inputs.run-lint }}
           Build__RunPack: ${{ inputs.run-pack }}
           Build__ValidatePack: ${{ inputs.validate-pack }}
-          Build__TestFilter: ${{ inputs.test-filter }}
-        run: "${{ runner.temp }}/purview-build/purview-build"
+        run: |
+          # Only forward the optional test filter when the caller provides it.
+          # Setting it to empty would override a consuming repo's purview-build.json
+          # (env vars take precedence over the JSON config) and silently disable the filter.
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            export Build__TestFilter="${{ inputs.test-filter }}"
+          fi
+          "${{ runner.temp }}/purview-build/purview-build"

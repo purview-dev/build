@@ -25,6 +25,8 @@ runs:
       with:
         dotnet-version: ${{ inputs.dotnet-version }}
 
+    - uses: oven-sh/setup-bun@v2
+
     - name: Install shared build
       shell: bash
       run: |

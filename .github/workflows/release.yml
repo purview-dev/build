@@ -29,11 +29,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Read and validate release version
         id: version
         shell: bash
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(bun -p "require('./package.json').version")
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "package.json version '$VERSION' is not SemVer." >&2
             exit 1
@@ -50,16 +52,16 @@ jobs:
 
       - name: Restore
         if: steps.version.outputs.release == 'true'
-        run: dotnet restore src/Purview.Build/Purview.Build.csproj --locked-mode
+        run: dotnet restore src/Build.slnx
 
       - name: Build gate
         if: steps.version.outputs.release == 'true'
-        run: dotnet build src/Purview.Build/Purview.Build.csproj --configuration Release --no-restore --warnaserror
+        run: dotnet build src/Build.slnx --configuration Release --no-restore --warnaserror
 
       - name: Pack tool from source
         if: steps.version.outputs.release == 'true'
         run: >-
-          dotnet pack src/Purview.Build/Purview.Build.csproj
+          dotnet pack src/Build.slnx
           --configuration Release --no-build --output artifacts
           -p:ContinuousIntegrationBuild=true
           -p:Version=${{ steps.version.outputs.version }}
@@ -93,5 +95,5 @@ jobs:
           NuGet__FeedUrl: https://api.nuget.org/v3/index.json
           Build__RunTests: "false"
           Build__RunLint: "false"
-          Build__ValidatePack: "false"
+          Build__ValidatePack: "true"
         run: "$RUNNER_TEMP/purview-build/purview-build"

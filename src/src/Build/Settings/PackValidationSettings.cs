@@ -1,0 +1,52 @@
+namespace Purview.Build.Settings;
+
+public sealed record PackValidationSettings
+{
+	public const string SectionName = "PackValidation";
+
+	/// <summary>
+	/// Every .nupkg must have a matching .snupkg (same id/version) and vice versa.
+	/// </summary>
+	/// <remarks>Defaults to <see langword="true"/>.</remarks>
+	public bool RequireSymbolPackage { get; init; } = true;
+
+	/// <summary>
+	/// Every .snupkg must contain at least one .pdb file.
+	/// </summary>
+	/// <remarks>Defaults to <see langword="true"/>.</remarks>
+	public bool RequireSymbolFiles { get; init; } = true;
+
+	/// <summary>
+	/// Every .dll/.exe in the .nupkg must have a matching portable PDB (in the .snupkg)
+	/// that contains a Source Link record.
+	/// </summary>
+	/// <remarks>Defaults to <see langword="true"/>.</remarks>
+	public bool RequireSourceLink { get; init; } = true;
+
+	/// <summary>
+	/// Every .dll/.exe in the .nupkg must be built deterministically (the PE must carry
+	/// the Reproducible debug directory entry emitted by deterministic compiler builds).
+	/// </summary>
+	/// <remarks>Defaults to <see langword="true"/>.</remarks>
+	public bool RequireDeterministic { get; init; } = true;
+
+	/// <summary>
+	/// Compiler-flag key=value entries that must appear in each assembly's PDB
+	/// compiler-flags record (case-insensitive), e.g. "optimization=release".
+	/// </summary>
+	/// <remarks>Defaults to 'optimization=release'.</remarks>
+	public string[] RequiredCompilerFlags { get; init; } = ["optimization=release"];
+
+	/// <summary>
+	/// Package id (glob, case-insensitive; "*" matches every package) to entry path globs
+	/// that MUST be present in the .nupkg. Paths use forward slashes, e.g.
+	/// "tools/**/Foo.dll" or "lib/netstandard2.0/Foo.dll".
+	/// </summary>
+	public Dictionary<string, string[]> RequiredContent { get; init; } = [];
+
+	/// <summary>
+	/// Package id (glob, case-insensitive; "*" matches every package) to entry path globs
+	/// that MUST NOT be present in the .nupkg. Paths use forward slashes, e.g. "**/*.pdb".
+	/// </summary>
+	public Dictionary<string, string[]> ForbiddenContent { get; init; } = [];
+}
