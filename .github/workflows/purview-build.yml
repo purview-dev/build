@@ -91,6 +91,14 @@ jobs:
           Build__RunLint: ${{ inputs.run-lint }}
           Build__RunPack: ${{ inputs.run-pack }}
           Build__ValidatePack: ${{ inputs.validate-pack }}
-          Build__TestFilter: ${{ inputs.test-filter }}
-          Build__TestProjects: ${{ inputs.test-projects }}
-        run: "${{ runner.temp }}/purview-build/purview-build"
+        run: |
+          # Only forward the optional test settings when the caller provides them.
+          # Setting these to empty would override a consuming repo's purview-build.json
+          # (env vars take precedence over the JSON config) and silently disable the filter.
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            export Build__TestFilter="${{ inputs.test-filter }}"
+          fi
+          if [ -n "${{ inputs.test-projects }}" ]; then
+            export Build__TestProjects="${{ inputs.test-projects }}"
+          fi
+          "${{ runner.temp }}/purview-build/purview-build"
