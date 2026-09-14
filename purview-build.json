@@ -2,11 +2,7 @@
 	"Build": {
 		"Solution": "src/Build.slnx",
 		"TestRoot": "src/tests",
-		"TestPatterns": "*Tests.csproj",
-		"RunTests": false,
-		"RunLint": false,
-		"RunPack": true,
-		"ValidatePack": true
+		"TestPatterns": "*Tests.csproj"
 	},
 	"PackValidation": {
 		"RequireSymbolPackage": true,
