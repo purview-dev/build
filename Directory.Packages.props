@@ -1,0 +1,31 @@
+<Project>
+	<PropertyGroup>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+		<RoslynVersion>5.9.0</RoslynVersion>
+		<TUnitVersion>1.67.0</TUnitVersion>
+		<DotNetRuntimeVersion>10.0.12</DotNetRuntimeVersion>
+		<MSExtensionVersion>10.10.0</MSExtensionVersion>
+		<ModularPipelinesVersion>3.2.8</ModularPipelinesVersion>
+		<NuGetPackagingVersion>7.9.0</NuGetPackagingVersion>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageVersion Include="Bogus" Version="35.6.5" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(DotNetRuntimeVersion)" />
+		<PackageVersion Include="Microsoft.Extensions.FileSystemGlobbing" Version="$(DotNetRuntimeVersion)" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+		<PackageVersion Include="TUnit" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Core" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Aspire" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Mocks" Version="$(TUnitVersion)" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="$(RoslynVersion)" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="$(RoslynVersion)" />
+		<PackageVersion Include="Microsoft.Testing.Extensions.VSTestBridge" Version="2.4.0" />
+		<PackageVersion Include="ModularPipelines" Version="$(ModularPipelinesVersion)" />
+		<PackageVersion Include="ModularPipelines.DotNet" Version="$(ModularPipelinesVersion)" />
+		<PackageVersion Include="ModularPipelines.Git" Version="$(ModularPipelinesVersion)" />
+		<PackageVersion Include="ModularPipelines.GitHub" Version="$(ModularPipelinesVersion)" />
+		<PackageVersion Include="NuGet.Packaging" Version="$(NuGetPackagingVersion)" />
+		<PackageVersion Include="NuGet.Versioning" Version="$(NuGetPackagingVersion)" />
+	</ItemGroup>
+</Project>

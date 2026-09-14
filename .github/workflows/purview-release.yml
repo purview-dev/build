@@ -83,11 +83,13 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Check for version bump
         id: version
         shell: bash
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(bun -p "require('./package.json').version")
           TAG="v$VERSION"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Version $VERSION is already tagged as $TAG. Skipping release."

@@ -1,12 +1,34 @@
 {
 	"Build": {
-		"Solution": "src/Purview.Build/Purview.Build.csproj",
+		"Solution": "src/Build.slnx",
 		"TestRoot": "src/tests",
 		"TestPatterns": "*Tests.csproj",
 		"RunTests": false,
 		"RunLint": false,
 		"RunPack": true,
-		"ValidatePack": false
+		"ValidatePack": true
+	},
+	"PackValidation": {
+		"RequireSymbolPackage": true,
+		"RequireSymbolFiles": true,
+		"RequireSourceLink": true,
+		"RequireDeterministic": true,
+		"RequiredCompilerFlags": [
+			"optimization=release"
+		],
+		"RequiredContent": {
+			"purview.build": [
+				"tools/**/Purview.Build.dll",
+				"README.md",
+				"LICENSE.md",
+				"purview-logo.png"
+			]
+		},
+		"ForbiddenContent": {
+			"*": [
+				"**/*.pdb"
+			]
+		}
 	},
 	"Release": {
 		"Mode": "None"

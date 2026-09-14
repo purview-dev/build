@@ -1,0 +1,88 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <IsPackable>true</IsPackable>
+    <ToolCommandName>purview-build</ToolCommandName>
+    <!-- <PackageId>Purview.Build</PackageId> -->
+    <Description>Shared build/test/release pipeline for purview-dev. A Modular Pipelines based .NET tool (Purview.Build) with a GitHub composite action and reusable workflows; consumers configure, the pipeline runs.</Description>
+	<NoWarn>$(NoWarn);CA1515;CA1873;</NoWarn>
+	<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
+	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->
+	<IsPublishable>true</IsPublishable>
+  </PropertyGroup>
+
+  <!-- Tool packages are built from the publish directory, which includes the PDB. NuGet's symbol
+       package derives from the same files, so the PDB is stripped from the .nupkg only after packing;
+       the .snupkg keeps it (under the matching tools/ path) for source-link validation. -->
+  <UsingTask
+	TaskName="StripToolPdbsFromPackage"
+	TaskFactory="RoslynCodeTaskFactory"
+	AssemblyFile="$([System.IO.Path]::Combine('$(MSBuildToolsPath)', 'Microsoft.Build.Tasks.Core.dll'))"
+  >
+	<ParameterGroup>
+	  <PackageFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+	</ParameterGroup>
+	<Task>
+	  <Using Namespace="System.IO" />
+	  <Using Namespace="System.IO.Compression" />
+	  <Using Namespace="System.Linq" />
+	  <Code Type="Fragment" Language="cs">
+		<![CDATA[
+			foreach (var item in PackageFiles ?? System.Array.Empty<ITaskItem>())
+			{
+				var path = item.GetMetadata("FullPath");
+				if (!File.Exists(path) || !path.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase))
+					continue;
+
+				var temp = path + ".tmp";
+				using (var input = ZipFile.OpenRead(path))
+				using (var output = new ZipArchive(File.Create(temp), ZipArchiveMode.Create))
+				{
+					foreach (var entry in input.Entries)
+					{
+						if (entry.Name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+							continue;
+
+						var newEntry = output.CreateEntry(entry.FullName, CompressionLevel.Optimal);
+						using (var source = entry.Open())
+						using (var destination = newEntry.Open())
+							source.CopyTo(destination);
+					}
+				}
+
+				File.Delete(path);
+				File.Move(temp, path);
+			}
+		]]>
+	  </Code>
+	</Task>
+  </UsingTask>
+
+  <Target
+	Name="StripToolPdbs"
+	AfterTargets="GenerateNuspec"
+	Condition="'$(IsPackable)' == 'true' AND '$(PackageOutputPath)' != ''"
+  >
+	<ItemGroup>
+	  <_StrippableToolPackage Include="$(PackageOutputPath)/**/*.nupkg" Exclude="$(PackageOutputPath)/**/*.snupkg" />
+	</ItemGroup>
+	<StripToolPdbsFromPackage PackageFiles="@(_StrippableToolPackage)" Condition="'@(_StrippableToolPackage)' != ''" />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
+    <PackageReference Include="ModularPipelines" />
+    <PackageReference Include="ModularPipelines.DotNet" />
+    <PackageReference Include="ModularPipelines.Git" />
+    <PackageReference Include="ModularPipelines.GitHub" />
+    <PackageReference Include="NuGet.Packaging" />
+    <PackageReference Include="NuGet.Versioning" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

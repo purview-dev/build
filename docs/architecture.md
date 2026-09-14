@@ -22,7 +22,8 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ### `Build`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
+| `LogLevel` | `Warning` | `Trace`/`Debug`/`Information`/`Warning`/`Error`/`Critical`/`None`; used by the pipeline logger |
 | `Solution` | `src/Product.slnx` | Solution, project, or directory passed to restore/build/pack |
 | `Configuration` | `Release` | .NET configuration |
 | `ArtifactsFolder` | `artifacts` | Package output directory |
@@ -39,16 +40,21 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ### `PackValidation`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `RequireSymbolPackage` | `true` | Every `.nupkg` must have a matching `.snupkg` and vice versa |
 | `RequireSymbolFiles` | `true` | Every `.snupkg` must contain at least one `.pdb` |
-| `RequiredContent` | `{}` | Package id → entry paths that must be present in the `.nupkg` |
-| `ForbiddenContent` | `{}` | Package id → entry paths that must not be present in the `.nupkg` |
+| `RequireSourceLink` | `false` | Every `.dll`/`.exe` must have a matching portable PDB containing a Source Link record |
+| `RequireDeterministic` | `false` | Every `.dll`/`.exe` must be built deterministically (the PE carries the Reproducible debug directory entry) |
+| `RequiredCompilerFlags` | `[]` | Compiler-flag `key=value` entries that must appear in each assembly's PDB compiler-flags record (e.g. `optimization=release`) |
+| `RequiredContent` | `{}` | Package-id glob → entry-path globs that must be present in the `.nupkg` (`"*"` matches every package) |
+| `ForbiddenContent` | `{}` | Package-id glob → entry-path globs that must not be present in the `.nupkg` (`"*"` matches every package) |
+
+Content entry paths and package-id keys are matched as globs (case-insensitive), e.g. `tools/**/Foo.dll` or `**/*.pdb`. Required content is satisfied when any package entry matches; forbidden content fails when any entry matches. The assembly checks (`RequireSourceLink`, `RequireDeterministic`, `RequiredCompilerFlags`) inspect each `.dll`/`.exe` in the `.nupkg` (PE header) and its sibling portable PDB in the `.snupkg` (custom debug info records); they only apply to assemblies the package ships symbols for. Determinism is detected via the PE's Reproducible debug directory entry, source link via the PDB's Source Link record, and compiler flags via the PDB's key/value compiler-flags record (matched case-insensitively, e.g. `optimization=release`).
 
 ### `NuGet`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `FeedUrl` | nuget.org v3 | Remote package source |
 | `TrustedPublishing` | `false` | Push without an API key (NuGet Trusted Publishing / OIDC) |
 | `APIKey` | unset | Secret; use `NUGET_APIKEY` or `NuGet__ApiKey` |
@@ -57,7 +63,7 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ### `PublishLocalNuGet`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `LocalFeedPath` | unset | Absolute local package source |
 | `EnvLocalFeedPath` | unset | Binds `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`; also falls back to process env `LOCAL_NUGET_FEED_PATH` |
 | `OverwriteExistingPackages` | `true` | Overwrite packages already in the local feed |
@@ -67,7 +73,7 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ### `GitHub`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `AccessToken` | unset | Secret; use `GITHUB_TOKEN` |
 | `EnvAccessToken` | unset | Binds `GitHub__GITHUB_TOKEN`; also falls back to process env `GITHUB_TOKEN` |
 | `ProductHeader` | `Purview.Build.Pipeline` | GitHub API product header |
@@ -75,7 +81,7 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ### `Release`
 
 | Key | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `Mode` | `None` | `None`, `LocalNuGet`, `NuGet`, or `GitHubRelease` |
 | `UploadArtifacts` | `false` | Upload every file in `Build:ArtifactsFolder` as GitHub release assets |
 
@@ -88,7 +94,7 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 ## Release behavior
 
 - `None`: build/test/pack may run, but nothing publishes.
-- `LocalNuGet`: pushes packages to the resolved local feed for developer testing.
+- `LocalNuGet`: pushes packages to the resolved local feed for developer testing. Only honoured when the tool runs **locally**; it is ignored in CI (Modular Pipelines detects a non-CI environment), so it cannot be driven through the reusable workflows.
 - `NuGet`: pushes packages to the configured feed and, by default, creates a GitHub release.
 - `GitHubRelease`: creates a GitHub release (optionally uploading `ArtifactsFolder` assets) without publishing NuGet packages.
 
