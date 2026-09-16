@@ -47,7 +47,7 @@ on:
   push:
     branches: [main]
 concurrency:
-  # Serialize releases; callers own concurrency (see docs/releasing.md).
+  # Serialize releases; callers own concurrency (see docs/wiki/Release-Flow.md).
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
@@ -121,7 +121,7 @@ Add `purview-build.json` at the repository root. Everything is optional; default
 
 Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuGet__ApiKey`), `GITHUB_TOKEN`, and `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`).
 
-See [architecture and configuration](docs/architecture.md) and [release strategy](docs/releasing.md).
+See the [Documentation](#documentation) section below for the architecture, configuration reference, and release strategy.
 
 ## Pipeline
 
@@ -140,4 +140,12 @@ This repository dogfoods the shared tool: CI builds and packs the tool from sour
 
 On a push to `main`, the release workflow rebuilds and reinstalls the tool from the current source, then runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` pointing at nuget.org, and `Release__UploadArtifacts=true`. The tool therefore publishes the immutable package to `https://api.nuget.org/v3/index.json` and tags and releases itself (`v{Version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
 
-GitHub initially creates NuGet packages as private. To make sure every package is **Internal** (consumable by all Purview-Dev members), an organization owner should set the org default: Purview-Dev → Settings → Packages → **Package Creation** → **Internal**, and change any already-published package's visibility in its **Package settings** → **Danger Zone**. See [docs/releasing.md](docs/releasing.md) for the exact steps and the `gh api` alternative.
+GitHub initially creates NuGet packages as private. To make sure every package is **Internal** (consumable by all Purview-Dev members), an organization owner should set the org default: Purview-Dev → Settings → Packages → **Package Creation** → **Internal**, and change any already-published package's visibility in its **Package settings** → **Danger Zone**. See [docs/wiki/Release-Flow.md](docs/wiki/Release-Flow.md) for the exact steps and the `gh api` alternative.
+
+## Documentation
+
+- [Homepage](https://purview.dev/projects/build/)
+- [Documentation](https://purview.dev/docs/build/)
+- [Architecture](docs/wiki/Architecture.md)
+- [Configuration reference](docs/wiki/Configuration-Reference.md)
+- [Release flow](docs/wiki/Release-Flow.md)

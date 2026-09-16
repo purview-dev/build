@@ -11,10 +11,11 @@ This file is the primary instruction set for human and AI agents working in this
 - `src/Purview.Build/` — the dotnet tool (the pipeline): `Program.cs`, `Modules/`, `Settings/`, `Helpers/`, `appsettings.json` (tool defaults).
 - `.github/actions/purview-build/` and `.github/workflows/` — the shared action and reusable workflows.
 - `.github/workflows/ci.yml` and `release.yml` — this repository's own CI/CD, which dogfoods the tool.
-- `docs/` — authoritative documentation:
-  - `docs/architecture.md` — architecture and the full configuration reference (settings keys, defaults, modules, release behavior).
-  - `docs/releasing.md` — versioning, branch models, and release strategy.
-  - `docs/migrations/` — per-consumer migration guides.
+- `docs/wiki/` — authoritative documentation:
+  - `docs/wiki/Architecture.md` — architecture and design decisions.
+  - `docs/wiki/Configuration-Reference.md` — the full configuration reference (settings keys, defaults, modules, release behavior).
+  - `docs/wiki/Release-Flow.md` — versioning, branch models, and release strategy.
+  - `docs/wiki/Migration-*.md` — per-consumer migration guides.
 - `README.md` — user-facing overview and minimal consumer setup.
 - `purview-build.json` — this repository's own pipeline configuration.
 - `Justfile` — developer recipes (`just --list`).
@@ -42,17 +43,17 @@ CI builds with `--warnaserror`.
 ## Rules and invariants
 
 - **Versioning**: the single source of truth is the `version` field in `package.json`. The pipeline reads it (`VersionModule`); `PackModule` overrides `Version`/`PackageVersion` from it.
-- **Do not push release tags manually.** The tool owns tagging (`v{version}`) and the GitHub release (`CreateGitHubReleaseModule`); releasing = bump `package.json` and merge. See `docs/releasing.md`.
+- **Do not push release tags manually.** The tool owns tagging (`v{version}`) and the GitHub release (`CreateGitHubReleaseModule`); releasing = bump `package.json` and merge. See `docs/wiki/Release-Flow.md`.
 - **Secrets**: supplied at runtime via env vars / CI secrets (`NUGET_APIKEY`/`NUGET_API_KEY`, `GITHUB_TOKEN`, `LOCAL_NUGET_FEED_PATH`). Never hardcode or commit them.
 - **Configuration precedence**: command line > environment variables (nested keys use `__`) > `purview-build.json` > baked-in defaults (`appsettings.json`).
 - **LocalNuGet is local-only**: `Release:Mode=LocalNuGet` is ignored in CI; it only works when running the tool locally.
 
 ## Change process
 
-1. Understand the affected surface by reading `docs/architecture.md` (configuration reference) and `docs/releasing.md` before changing settings/modules.
+1. Understand the affected surface by reading `docs/wiki/Architecture.md` and `docs/wiki/Configuration-Reference.md` before changing settings/modules.
 2. Make the change, format with `just lint-fix`, and verify with `dotnet build -c Release --warnaserror` (and `just test` when tests exist).
 3. Follow the Conventional Commit style for the commit message.
 
 ## Documentation
 
-Keep `README.md`, `docs/architecture.md`, `docs/releasing.md`, and the workflow/action inputs in sync when changing behavior. If a new setting or default is added, it must be reflected in the `docs/architecture.md` configuration tables and in `src/Purview.Build/appsettings.json` defaults.
+Keep `README.md`, `docs/wiki/Architecture.md`, `docs/wiki/Configuration-Reference.md`, and the workflow/action inputs in sync when changing behavior. If a new setting or default is added, it must be reflected in the `docs/wiki/Configuration-Reference.md` tables and in `src/src/Build/appsettings.json` defaults.

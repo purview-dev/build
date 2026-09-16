@@ -1,25 +1,16 @@
-# Architecture and configuration
+# Configuration Reference
 
-## Decision
+Configuration is optional in a consuming repository; defaults are baked into the tool. Add `purview-build.json` at the repository root to override them.
 
-The shared artifact is a .NET tool NuGet package, not a reusable workflow and not an MSBuild SDK. Modular Pipelines is an executable orchestration system, so a tool is its natural package boundary. A tool manifest gives each consumer deterministic version pinning and Renovate/Dependabot-compatible upgrades. It also keeps GitHub Actions as a thin host; the same command runs locally, in GitHub Actions, or in another CI service.
+## Precedence
 
-The implementation is the generalized `PipelineCLI` that originated in `sourcegeneratorframework` (its most advanced version, including pack validation). It supersedes the earlier `Purview.Build` modules.
+Command line > environment variables > `purview-build.json` > baked-in defaults (`appsettings.json`) > code-level defaults.
 
-The repository additionally exposes:
+- Environment variables use `__` for nesting, for example `Release__Mode=NuGet`.
+- Command-line overrides use configuration syntax, for example `--Build:RunPack=false`.
+- Secrets must not be committed; they are supplied at runtime through env vars / CI secrets. See [Secrets and Environment Variables](Secrets-and-Environment-Variables.md).
 
-- a **composite action** (`.github/actions/purview-build`) that installs a pinned `Purview.Build` version and runs it, for repositories embedding the build in their own jobs, and
-- two **reusable workflows** (`purview-build.yml`, `purview-release.yml`) that wrap that logic with structured inputs/secrets, reducing a consumer to one reusable-workflow job plus `purview-build.json`.
-
-An MSBuild SDK remains a possible future companion for shared compile-time properties, analyzers, or package metadata. It should not own CI orchestration.
-
-## Ownership boundary
-
-The package owns module implementation, dependency ordering, safe defaults, secret lookup, NuGet/GitHub integration, and diagnostics. Each repository owns its tool-version pin, paths and discovery patterns, feature switches, and release-mode selection. A project needing truly custom behavior can invoke its own command before/after the shared tool; a generally useful variation should be added as a typed option here.
-
-## Configuration reference
-
-### `Build`
+## `Build`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -37,7 +28,7 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 | `RunPack` | `true` | Enable packing |
 | `ValidatePack` | `true` | Enable pack validation |
 
-### `PackValidation`
+## `PackValidation`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -51,7 +42,9 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 
 Content entry paths and package-id keys are matched as globs (case-insensitive), e.g. `tools/**/Foo.dll` or `**/*.pdb`. Required content is satisfied when any package entry matches; forbidden content fails when any entry matches. The assembly checks (`RequireSourceLink`, `RequireDeterministic`, `RequiredCompilerFlags`) inspect each `.dll`/`.exe` in the `.nupkg` (PE header) and its sibling portable PDB in the `.snupkg` (custom debug info records); they only apply to assemblies the package ships symbols for. Determinism is detected via the PE's Reproducible debug directory entry, source link via the PDB's Source Link record, and compiler flags via the PDB's key/value compiler-flags record (matched case-insensitively, e.g. `optimization=release`).
 
-### `NuGet`
+> **Tool defaults vs code defaults.** The shipped `appsettings.json` sets `RequireSourceLink: false`, `RequireDeterministic: false`, and `RequiredCompilerFlags: []`. The C# property initializers in `PackValidationSettings` default those to `true`/`true`/`["optimization=release"]`, but because `appsettings.json` always loads and wins over code defaults, the effective shipped defaults are the `false`/`false`/`[]` values shown above.
+
+## `NuGet`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -60,7 +53,7 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | `APIKey` | unset | Secret; use `NUGET_APIKEY` or `NuGet__ApiKey` |
 | `EnvAPIKey` | unset | Binds `NuGet__NUGET_APIKEY`; also falls back to process env `NUGET_APIKEY`/`NUGET_API_KEY` |
 
-### `PublishLocalNuGet`
+## `PublishLocalNuGet`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -70,7 +63,7 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | `ShutdownDotnetBuilderServer` | `true` | Shut down the dotnet build server after publishing |
 | `ClearPackageCache` | `true` | Clear the local NuGet package caches for the published packages |
 
-### `GitHub`
+## `GitHub`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -78,34 +71,37 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | `EnvAccessToken` | unset | Binds `GitHub__GITHUB_TOKEN`; also falls back to process env `GITHUB_TOKEN` |
 | `ProductHeader` | `Purview.Build.Pipeline` | GitHub API product header |
 
-### `Release`
+## `Release`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `Mode` | `None` | `None`, `LocalNuGet`, `NuGet`, or `GitHubRelease` |
 | `UploadArtifacts` | `false` | Upload every file in `Build:ArtifactsFolder` as GitHub release assets |
 
-## Project, testing, and release support
+## Example
 
-- **Project types**: the pipeline is dotnet-first (libraries, source generators, analyzers, MSBuild SDKs, Aspire hosting extensions). Non-dotnet project types (`Web` for full-stack apps, `WebExtension` for JS/Azure DevOps extensions) are designed as future module additions gated by configuration.
-- **Testing types**: TUnit on Microsoft.Testing.Platform (default) and xUnit, both configurable via `TestFramework`/`TestFilter`. Non-dotnet runners (Vitest, Playwright, Jest, Astro) are future modules.
-- **Release types**: nuget.org (API key or Trusted Publishing), GitHub Packages internal feed, local NuGet feed, GitHub release (optionally with package/vsix assets), and future Aspire-deploy / Azure DevOps marketplace publishing.
-
-## Release behavior
-
-- `None`: build/test/pack may run, but nothing publishes.
-- `LocalNuGet`: pushes packages to the resolved local feed for developer testing. Only honoured when the tool runs **locally**; it is ignored in CI (Modular Pipelines detects a non-CI environment), so it cannot be driven through the reusable workflows.
-- `NuGet`: pushes packages to the configured feed and, by default, creates a GitHub release.
-- `GitHubRelease`: creates a GitHub release (optionally uploading `ArtifactsFolder` assets) without publishing NuGet packages.
-
-The workflow decides whether a version is eligible to release (for example, only an untagged version on `main` or `release`) and sets `Release__Mode`. Credentials remain CI secrets.
-
-## Repository root resolution
-
-The tool locates the repository root by walking up from the current working directory to the nearest `package.json`; `Environment.CurrentDirectory` is set to that root before modules run. `MODULAR_PIPELINES_DIRECTORY` can override the directory containing `appsettings.json` when the defaults do not apply.
-
-Command-line overrides use configuration syntax, for example:
-
-```shell
-dotnet purview-build --Build:TestPatterns=*IntegrationTests.csproj --Build:RunPack=false
+```json
+{
+  "Build": {
+    "Solution": "src/MyProduct.slnx",
+    "TestRoot": "src/tests",
+    "TestPatterns": "*Tests.csproj",
+    "TestFilter": "/*/*/*/*[Category=Unit]"
+  },
+  "PackValidation": {
+    "RequireSymbolPackage": true,
+    "RequireSourceLink": true,
+    "RequireDeterministic": true,
+    "RequiredCompilerFlags": ["optimization=release"],
+    "RequiredContent": {
+      "my.product": ["lib/netstandard2.0/My.Product.dll"]
+    }
+  },
+  "Release": { "Mode": "None" }
+}
 ```
+
+## See also
+
+- [Pipeline Modules](Pipeline-Modules.md)
+- [Secrets and Environment Variables](Secrets-and-Environment-Variables.md)

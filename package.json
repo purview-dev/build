@@ -1,5 +1,13 @@
 {
   "name": "purview-build",
   "version": "0.2.4",
-  "private": true
+  "private": true,
+  "homepage": "https://purview.dev/projects/build/",
+  "bugs": {
+    "url": "https://github.com/purview-dev/build/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/purview-dev/build.git"
+  }
 }
