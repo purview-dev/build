@@ -33,13 +33,13 @@ Omit `--version` to install the latest stable release. For a pinned local tool m
 `Release:Mode=LocalNuGet` pushes packages to a local feed and is only honoured when the tool runs **locally** — it is ignored in CI.
 
 ```shell
-LOCAL_NUGET_FEED_PATH=p:/_sync-projects/.local-nuget/ ./.tools/purview-build --Release:Mode=LocalNuGet
+LOCAL_NUGET_FEED_PATH=C:/local/nuget-feed/ ./.tools/purview-build --Release:Mode=LocalNuGet
 ```
 
-The local feed path must be an absolute path. `just` runs recipes through the shell, which strips backslashes from unquoted arguments; a Windows path such as `p:\_sync-projects\.local-nuget\` arrives as the drive-relative `p:_sync-projects.local-nuget` and is rejected. Use the `LOCAL_NUGET_FEED_PATH` environment variable or forward slashes:
+The local feed path must be an absolute path. `just` runs recipes through the shell, which strips backslashes from unquoted arguments, so a backslash-based Windows path is mangled before the tool sees it and is rejected. Use the `LOCAL_NUGET_FEED_PATH` environment variable, or forward slashes:
 
 ```shell
-just pipeline-local-release --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
+just pipeline-local-release --PublishLocalNuGet:LocalFeedPath=C:/local/nuget-feed/
 ```
 
 By default the module overwrites existing packages, clears the NuGet global-packages and HTTP caches for the published packages, and shuts down the dotnet build server afterwards (all configurable under `PublishLocalNuGet`).
