@@ -1,4 +1,4 @@
-# Versioning and release strategy
+# Versioning and Release Flow
 
 `Purview.Build` follows SemVer. The package version is the compatibility contract for configuration keys, defaults, module ordering, and tool behavior.
 
@@ -31,9 +31,11 @@ The `release-branch` input is retained for backward compatibility only.
 
 ## This repository's CI/CD
 
-This repository dogfoods the shared tool. CI performs restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself.
+This repository dogfoods the shared tool. CI performs restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself. See [Repository CI/CD](Repository-CI-CD.md).
 
 On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using the `NUGET_APIKEY` secret, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. The tool therefore owns tagging; maintainers must not push release tags manually.
+
+## GitHub package visibility
 
 GitHub creates NuGet packages as private on first publication. To make sure every package is **Internal** (visible to all Purview-Dev members), set both:
 
@@ -56,7 +58,7 @@ NuGet versions are immutable; `--skip-duplicate` makes recovery safe if publicat
 ## For local validation
 
 ```shell
-dotnet pack src/Purview.Build/Purview.Build.csproj -c Release -o artifacts -p:Version=0.2.4 -p:PackageVersion=0.2.4
+dotnet pack src/src/Build/Build.csproj -c Release -o artifacts -p:Version=0.2.4 -p:PackageVersion=0.2.4
 dotnet tool install Purview.Build --tool-path ./.tools --add-source ./artifacts
 ./.tools/purview-build
 ```
@@ -66,3 +68,8 @@ To publish packages built by a consumer to a local feed for development:
 ```shell
 LOCAL_NUGET_FEED_PATH=p:/_sync-projects/.local-nuget/ ./.tools/purview-build --Release:Mode=LocalNuGet
 ```
+
+## See also
+
+- [Getting Started](Getting-Started.md)
+- [Repository CI/CD](Repository-CI-CD.md)

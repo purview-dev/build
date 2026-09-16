@@ -7,10 +7,16 @@
 
 	<Import Sdk="Purview.DotNetProjectSdk" Project="Sdk.props" />
 
+	<PropertyGroup Label="Purview site URL metadata">
+		<PurviewHomepage>https://purview.dev/</PurviewHomepage>
+		<PurviewProjectUrl>$(PurviewHomepage)projects/build/</PurviewProjectUrl>
+		<PurviewDocsUrl>$(PurviewHomepage)docs/build/</PurviewDocsUrl>
+	</PropertyGroup>
+
 	<PropertyGroup Label="NuGet package metadata">
 		<Authors>Purview Contributors</Authors>
 		<Company>Purview Developers</Company>
-		<PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+		<PackageProjectUrl>$(PurviewProjectUrl)</PackageProjectUrl>
 		<RepositoryUrl>$(RepositoryUrl)</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageIcon>purview-logo.png</PackageIcon>
