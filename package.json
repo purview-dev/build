@@ -1,6 +1,6 @@
 {
   "name": "purview-build",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "homepage": "https://purview.dev/projects/build/",
   "bugs": {
