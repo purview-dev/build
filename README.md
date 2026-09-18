@@ -1,4 +1,4 @@
-# Purview.Build
+# Build
 
 [![NuGet version](https://img.shields.io/nuget/v/Purview.Build.svg)](https://www.nuget.org/packages/Purview.Build)
 [![Release](https://github.com/purview-dev/build/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/build/actions/workflows/release.yml)

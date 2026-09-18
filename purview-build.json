@@ -17,7 +17,7 @@
 				"tools/**/Purview.Build.dll",
 				"README.md",
 				"LICENSE.md",
-				"purview-logo.png"
+				"purview-logo-light.png"
 			]
 		},
 		"ForbiddenContent": {

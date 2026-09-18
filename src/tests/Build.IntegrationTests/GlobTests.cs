@@ -11,7 +11,7 @@ public class GlobTests
 		"lib/netstandard2.0/Foo.pdb",
 		"README.md",
 		"LICENSE.md",
-		"purview-logo.png",
+		"purview-logo-light.png",
 	];
 
 	[Test]
