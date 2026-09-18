@@ -132,7 +132,7 @@ See the [Documentation](#documentation) section below for the architecture, conf
 ```text
 Version ───────────────┐
 Restore → Build → Test ├→ Pack → Validate → Publish → GitHub release
-           └→ Lint     │
+   └→ Lint             │
 Version ───────────────┘
 ```
 
