@@ -52,8 +52,10 @@ dotnet purview-build --Build:TestPatterns=*IntegrationTests.csproj --Build:RunPa
 
 ## Project, testing, and release support
 
-- **Project types**: the pipeline is dotnet-first (libraries, source generators, analyzers, MSBuild SDKs, Aspire hosting extensions). Non-dotnet project types (`Web` for full-stack apps, `WebExtension` for JS/Azure DevOps extensions) are designed as future module additions gated by configuration.
-- **Testing types**: TUnit on Microsoft.Testing.Platform (default) and xUnit, both configurable via `TestFramework`/`TestFilter`. Non-dotnet runners (Vitest, Playwright, Jest, Astro) are future modules.
+- **Project types**: the pipeline is dotnet-first (libraries, source generators, analyzers, MSBuild SDKs, Aspire hosting extensions), gated by `Build:ProjectType`. Non-dotnet project types are implemented as configuration-gated module branches:
+  - `Web` (Bun/JS/TS sites such as the Astro/Starlight purview.dev portal) runs the repository's root `package.json` scripts: `bun install` (restore), `bun run build` (build, after an automatic `data:sync` when one is declared and the command is left at the default), `bun run format:check` + `bun run lint` (lint), and `bun run test` (tests). The Web pack step zips `Build:WebBuildOutput` into `Build:ArtifactsFolder` as `<package-name>-<version>.zip`. Every Web command is overridable via the `Web*` settings.
+  - `WebExtension` (JS/Azure DevOps extensions) remains future work.
+- **Testing types**: TUnit on Microsoft.Testing.Platform (default) and xUnit, both configurable via `TestFramework`/`TestFilter`. Web projects run the `WebTestCommand` (default `bun run test`); other non-dotnet runners (Vitest, Playwright, Jest) can be targeted by overriding that command.
 - **Release types**: nuget.org (API key or Trusted Publishing), GitHub Packages internal feed, local NuGet feed, GitHub release (optionally with package/vsix assets), and future Aspire-deploy / Azure DevOps marketplace publishing.
 
 ## Release behavior

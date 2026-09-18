@@ -21,8 +21,9 @@ public sealed class ValidatePackModule(
 			.Create()
 			.WithSkipWhen(_ =>
 				!buildSettings.Value.ValidatePack
+				|| buildSettings.Value.ProjectType == ProjectType.Web
 					? SkipDecision.Skip(
-						"Pack validation is disabled. Set Build__ValidatePack=true to enable it."
+						"Pack validation is disabled or not applicable (Web projects do not produce .nupkg files). Set Build__ValidatePack=true and ProjectType=DotNet to enable it."
 					)
 					: SkipDecision.DoNotSkip
 			)

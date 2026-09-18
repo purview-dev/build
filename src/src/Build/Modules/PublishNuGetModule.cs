@@ -22,7 +22,8 @@ public sealed class PublishNuGetModule(
 		ModuleConfiguration
 			.Create()
 			.WithSkipWhen(_ =>
-				releaseSettings.Value.Mode != ReleaseMode.NuGet
+				buildSettings.Value.ProjectType == ProjectType.Web
+				|| releaseSettings.Value.Mode != ReleaseMode.NuGet
 				|| (
 					!nugetSettings.Value.TrustedPublishing
 					&& string.IsNullOrWhiteSpace(nugetSettings.Value.GetNuGetAPIKey())

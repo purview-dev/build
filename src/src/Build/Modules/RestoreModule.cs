@@ -16,6 +16,15 @@ public sealed class RestoreModule(IOptions<BuildSettings> settings) : Module<Com
 		CancellationToken cancellationToken
 	)
 	{
+		if (settings.Value.ProjectType == ProjectType.Web)
+		{
+			return await context
+				.Shell.Command.ExecuteCommandLineTool(
+					BunCLIOptions.FromCommand(settings.Value.WebInstallCommand),
+					cancellationToken: cancellationToken
+				);
+		}
+
 		return await context
 			.DotNet()
 			.Restore(

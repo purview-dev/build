@@ -22,7 +22,9 @@ public sealed class PublishLocalNuGetModule(
 		ModuleConfiguration
 			.Create()
 			.WithSkipWhen(ctx =>
-				!ctx.IsRunningLocally() || releaseSettings.Value.Mode != ReleaseMode.LocalNuGet
+				buildSettings.Value.ProjectType == ProjectType.Web
+				|| !ctx.IsRunningLocally()
+				|| releaseSettings.Value.Mode != ReleaseMode.LocalNuGet
 					? SkipDecision.Skip(
 						"Local NuGet Feed publishing is disabled. Run the pipeline locally with Release__Mode=LocalNuGet to enable it."
 					)
