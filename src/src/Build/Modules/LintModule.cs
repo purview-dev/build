@@ -29,6 +29,10 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 	)
 	{
 		var repositoryRoot = PathHelpers.FindRepositoryRoot();
+
+		if (settings.Value.ProjectType == ProjectType.Web)
+			return await RunWebLintAsync(context, repositoryRoot, cancellationToken);
+
 		var dotnet = context.DotNet();
 
 		const int maxAttempts = 3;
@@ -56,6 +60,50 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 			new() { WorkingDirectory = repositoryRoot },
 			cancellationToken: cancellationToken
 		);
+	}
+
+	async Task<CommandResult?> RunWebLintAsync(
+		IModuleContext context,
+		string repositoryRoot,
+		CancellationToken cancellationToken
+	)
+	{
+		var scripts = WebScripts.ReadScripts(repositoryRoot);
+
+		async Task<CommandResult?> RunIfDeclaredAsync(
+			string command,
+			string description
+		)
+		{
+			var scriptName = WebScripts.GetScriptName(command);
+			if (scriptName is null || !scripts.ContainsKey(scriptName))
+			{
+				context.Logger.LogInformation(
+					"Skipping Web {Description}: the repository declares no '{Script}' script.",
+					description,
+					scriptName ?? command
+				);
+
+				return null;
+			}
+
+			var result = await context.Shell.Command.ExecuteCommandLineTool(
+				BunCLIOptions.FromCommand(command),
+				new() { WorkingDirectory = repositoryRoot },
+				cancellationToken: cancellationToken
+			);
+
+			return result.ExitCode == 0 ? null : result;
+		}
+
+		var formatResult = await RunIfDeclaredAsync(
+			settings.Value.WebFormatCheckCommand,
+			"format check"
+		);
+		if (formatResult is not null)
+			return formatResult;
+
+		return await RunIfDeclaredAsync(settings.Value.WebLintCommand, "lint");
 	}
 
 	static async Task<CommandResult> RestoreWithRetryAsync(

@@ -30,6 +30,18 @@ public sealed class RunTestsModule(IOptions<BuildSettings> settings) : Module<Co
 		CancellationToken cancellationToken
 	)
 	{
+		if (settings.Value.ProjectType == ProjectType.Web)
+		{
+			var repositoryRoot = PathHelpers.FindRepositoryRoot();
+			var result = await context.Shell.Command.ExecuteCommandLineTool(
+				BunCLIOptions.FromCommand(settings.Value.WebTestCommand),
+				new() { WorkingDirectory = repositoryRoot },
+				cancellationToken: cancellationToken
+			);
+
+			return [result];
+		}
+
 		var testRoot = settings.Value.TestRoot;
 		var testProjects = FilterTestProjects(
 			Directory

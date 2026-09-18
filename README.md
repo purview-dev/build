@@ -98,9 +98,13 @@ Omit `--version` to install the latest stable release.
 
 Add `purview-build.json` at the repository root. Everything is optional; defaults are baked into the tool. Configuration precedence is command line, environment variables, `purview-build.json`, then defaults. Nested environment keys use `__`, for example `Release__Mode=NuGet`.
 
+The pipeline is dotnet-first but supports **Web** projects (Bun/JS/TS, e.g. the Astro/Starlight `purview-dev` portal) by setting `Build:ProjectType=Web`: restore/build/lint/test then run the repository's root `package.json` scripts (`bun install`, `bun run build`, `bun run format:check`/`bun run lint`, `bun run test`), and the pack step zips `Build:WebBuildOutput` (default `src/dist`) into `Build:ArtifactsFolder` for the GitHub release. Every Web command is overridable via the `Web*` settings below.
+
 ```json
 {
   "Build": {
+    "ProjectType": "Web",
+    "WebBuildCommand": "bun run build",
     "Solution": "src/MyProduct.slnx",
     "TestRoot": "src/tests",
     "TestPatterns": "*Tests.csproj",

@@ -15,7 +15,8 @@ Command line > environment variables > `purview-build.json` > baked-in defaults 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `LogLevel` | `Warning` | `Trace`/`Debug`/`Information`/`Warning`/`Error`/`Critical`/`None`; used by the pipeline logger |
-| `Solution` | `src/Product.slnx` | Solution, project, or directory passed to restore/build/pack |
+| `ProjectType` | `DotNet` | `DotNet` (dotnet restore/build/test/pack) or `Web` (Bun commands from the root `package.json` scripts) |
+| `Solution` | `src/Product.slnx` | Solution, project, or directory passed to restore/build/pack (dotnet only) |
 | `Configuration` | `Release` | .NET configuration |
 | `ArtifactsFolder` | `artifacts` | Package output directory |
 | `RunTests` | `true` | Enable discovered tests |
@@ -24,9 +25,15 @@ Command line > environment variables > `purview-build.json` > baked-in defaults 
 | `TestProjects` | `*` | Comma-separated project names/globs to run; `*` runs all discovered |
 | `TestFramework` | `TUnit` | `TUnit` (tree-node filter) or `xUnit` (VSTest filter) |
 | `TestFilter` | `/*/*/*/*/` | TUnit tree-node filter or xUnit `--filter`; empty disables it |
-| `RunLint` | `true` | Restore local tools and run CSharpier check |
+| `RunLint` | `true` | Restore local tools and run CSharpier check (dotnet) or `format:check` + `lint` scripts (Web) |
 | `RunPack` | `true` | Enable packing |
-| `ValidatePack` | `true` | Enable pack validation |
+| `ValidatePack` | `true` | Enable pack validation (dotnet only; always skipped for Web) |
+| `WebInstallCommand` | `bun install` | Install command for `ProjectType=Web` |
+| `WebBuildCommand` | `bun run build` | Build command for `ProjectType=Web`; when left at the default the module first runs a `data:sync` script if one is declared |
+| `WebLintCommand` | `bun run lint` | Lint command for `ProjectType=Web` |
+| `WebFormatCheckCommand` | `bun run format:check` | Format-check command for `ProjectType=Web` |
+| `WebTestCommand` | `bun run test` | Test command for `ProjectType=Web` |
+| `WebBuildOutput` | `src/dist` | Directory zipped into `ArtifactsFolder` by the Web pack step |
 
 ## `PackValidation`
 

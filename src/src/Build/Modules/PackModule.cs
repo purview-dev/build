@@ -6,6 +6,7 @@ using ModularPipelines.DotNet.Options;
 using ModularPipelines.Models;
 using ModularPipelines.Modules;
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 
 namespace Purview.Build.Modules;
 
@@ -40,6 +41,9 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 
 		Directory.CreateDirectory(settings.Value.ArtifactsFolder);
 
+		if (settings.Value.ProjectType == ProjectType.Web)
+			return PackWebArtifact(context, nugetVersion.ToString());
+
 		var version = nugetVersion.ToString();
 		return await context
 			.DotNet()
@@ -53,5 +57,42 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 				},
 				cancellationToken: cancellationToken
 			);
+	}
+
+	CommandResult? PackWebArtifact(IModuleContext context, string version)
+	{
+		var repositoryRoot = PathHelpers.FindRepositoryRoot();
+		var packageName = WebScripts.ReadPackageName(repositoryRoot);
+
+		var outputDirectory = Path.GetFullPath(
+			Path.Combine(repositoryRoot, settings.Value.WebBuildOutput)
+		);
+		if (!Directory.Exists(outputDirectory))
+		{
+			context.Logger.LogWarning(
+				"The Web build output '{WebBuildOutput}' does not exist. Nothing was packed.",
+				settings.Value.WebBuildOutput
+			);
+
+			return null;
+		}
+
+		var zipPath = Path.Combine(
+			Path.GetFullPath(settings.Value.ArtifactsFolder),
+			$"{packageName}-{version}.zip"
+		);
+		ZipFile.CreateFromDirectory(
+			outputDirectory,
+			zipPath,
+			CompressionLevel.Optimal,
+			includeBaseDirectory: false
+		);
+
+		context.Logger.LogInformation(
+			"Packed Web build output into {ZipPath}.",
+			Path.GetFileName(zipPath)
+		);
+
+		return null;
 	}
 }
