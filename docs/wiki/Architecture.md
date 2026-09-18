@@ -31,7 +31,7 @@ VersionModule ──────────────┘
 Explicit `[DependsOn]` edges:
 
 - `BuildModule` depends on `RestoreModule`.
-- `LintModule` depends on `RestoreModule` (Web lint needs `node_modules` installed; dotnet lint is unaffected beyond running after restore).
+- `LintModule` depends on `RestoreModule` (Web lint needs the dependencies installed by `bun install`; dotnet lint is unaffected beyond running after restore).
 - `RunTestsModule` depends on `BuildModule`.
 - `PackModule` depends on `RunTestsModule` and `VersionModule`.
 - `ValidatePackModule` depends on `PackModule`.
