@@ -5,7 +5,7 @@ The pipeline is a Modular Pipelines orchestration. Modules are registered in `Pr
 ```text
 Version ───────────────┐
 Restore → Build → Test ├→ Pack → Validate → Publish → GitHub release
-           └→ Lint     │
+   └→ Lint             │
 Version ───────────────┘
 ```
 
@@ -26,7 +26,7 @@ Depends on `RestoreModule`.
 
 ## LintModule
 
-Skip condition: skipped when `Build:RunLint` is false.
+Depends on `RestoreModule` (Web lint invokes tooling from `node_modules`, so it must wait for `bun install`; dotnet lint is unaffected beyond running after restore). Skip condition: skipped when `Build:RunLint` is false.
 
 - **DotNet**: restores the repository's local tools (`dotnet tool restore` against `.config/dotnet-tools.json`, retried up to 3 times with a 2-second backoff on failure) and then runs `dotnet tool run csharpier check <repository root>`. The repository root is resolved by walking up to the nearest `package.json`.
 - **Web**: runs `Build:WebFormatCheckCommand` (default `bun run format:check`) then `Build:WebLintCommand` (default `bun run lint`). Each step is skipped when the corresponding script is not declared in the root `package.json`.

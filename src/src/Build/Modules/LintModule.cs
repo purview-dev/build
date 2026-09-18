@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Purview.Build.Modules;
 
 [ModuleCategory("Build")]
+[DependsOn<RestoreModule>]
 public sealed class LintModule(IOptions<BuildSettings> settings) : Module<CommandResult>
 {
 	protected override ModuleConfiguration Configure() =>
