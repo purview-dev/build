@@ -87,7 +87,11 @@ public sealed class ValidatePackModule(
 		{
 			foreach (var pair in packagePairs.Values)
 			{
-				if (pair.Nupkg is not null && pair.Snupkg is null)
+				if (
+					pair.Nupkg is not null
+					&& pair.Snupkg is null
+					&& !pair.Nupkg.HasEmbeddedAnalyzerSymbols
+				)
 				{
 					pair.Nupkg.AddError(
 						$"Package '{pair.Nupkg.PackageId}' {pair.Nupkg.Version.ToNormalizedString()} has no matching .snupkg."
@@ -200,7 +204,8 @@ public sealed class ValidatePackModule(
 				"nupkg",
 				CreatePackageKey(id, version),
 				id,
-				version
+				version,
+				PackageInspector.HasEmbeddedAnalyzerSymbols(files)
 			);
 			result.AddErrors(errors);
 			return result;
@@ -297,12 +302,12 @@ public sealed class ValidatePackModule(
 	{
 		var pdbFiles = files
 			.Where(IsPdbFile)
-			.Where(file => !file.StartsWith("tools/", StringComparison.OrdinalIgnoreCase))
+			.Where(file => !PackageInspector.IsPdbAllowedInNupkg(file))
 			.ToArray();
 		if (pdbFiles.Length > 0)
 			errors.Add(
 				$"Package contains PDB file(s): {string.Join(", ", pdbFiles)}. "
-					+ "PDBs outside 'tools/' must only be delivered through the .snupkg."
+					+ "PDBs outside 'tools/' and 'analyzers/dotnet/' must only be delivered through the .snupkg."
 			);
 	}
 
@@ -335,7 +340,8 @@ public sealed class PackValidationResult(
 	string kind,
 	string packageKey,
 	string packageId,
-	NuGetVersion version
+	NuGetVersion version,
+	bool hasEmbeddedAnalyzerSymbols = false
 	)
 {
 	readonly List<string> _errors = [];
@@ -349,6 +355,8 @@ public sealed class PackValidationResult(
 	public string PackageId { get; } = packageId;
 
 	public NuGetVersion Version { get; } = version;
+
+	public bool HasEmbeddedAnalyzerSymbols { get; } = hasEmbeddedAnalyzerSymbols;
 
 	public IReadOnlyList<string> Errors => _errors;
 

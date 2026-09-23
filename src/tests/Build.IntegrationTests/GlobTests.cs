@@ -58,6 +58,20 @@ public class GlobTests
 	}
 
 	[Test]
+	public async Task AnalyzerPdb_IsAllowedInNupkg()
+	{
+		await Assert.That(PackageInspector.IsPdbAllowedInNupkg("analyzers/dotnet/cs/Sample.pdb")).IsTrue();
+		await Assert
+			.That(
+				PackageInspector.HasEmbeddedAnalyzerSymbols([
+					"analyzers/dotnet/cs/Sample.dll",
+					"analyzers/dotnet/cs/Sample.pdb",
+				])
+			)
+			.IsTrue();
+	}
+
+	[Test]
 	public async Task RequiredContent_GlobSatisfied_Passes()
 	{
 		List<string> errors = [];

@@ -24,6 +24,15 @@ static class PackageInspector
 		|| settings.RequireDeterministic
 		|| settings.RequiredCompilerFlags.Length > 0;
 
+	public static bool IsPdbAllowedInNupkg(string path) =>
+		path.StartsWith("tools/", StringComparison.OrdinalIgnoreCase)
+		|| path.StartsWith("analyzers/dotnet/", StringComparison.OrdinalIgnoreCase);
+
+	public static bool HasEmbeddedAnalyzerSymbols(IEnumerable<string> paths) =>
+		paths.Any(path =>
+			IsPdbFile(path) && path.StartsWith("analyzers/dotnet/", StringComparison.OrdinalIgnoreCase)
+		);
+
 	public static void ValidateContentRules(
 		IReadOnlyList<string> files,
 		string packageId,
@@ -283,4 +292,7 @@ static class PackageInspector
 		return string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase)
 			|| string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase);
 	}
+
+	static bool IsPdbFile(string path) =>
+		string.Equals(Path.GetExtension(path), ".pdb", StringComparison.OrdinalIgnoreCase);
 }

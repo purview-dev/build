@@ -136,7 +136,7 @@ Restore → Build → Test ├→ Pack → Validate → Publish → GitHub relea
 Version ───────────────┘
 ```
 
-`Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
+`Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
 
 ## Repository CI/CD
 
