@@ -21,6 +21,19 @@ Both maps are keyed by package-id glob (case-insensitive; `"*"` matches every pa
 - **Required**: the rule is satisfied when any package entry matches the glob; a missing match is an error.
 - **Forbidden**: any matching entry is an error.
 
+### Target-framework partials (`$(TFM)`)
+
+An entry may contain the literal token `$(TFM)`, e.g. `lib/$(TFM)/Purview.Telemetry.dll`. The token is expanded into one entry per target framework the package actually ships (short folder name, e.g. `net8.0`, `net48`, `netstandard2.0`, discovered via the package's own `lib`/`ref`/`build`/`tools`/`frameworkAssemblies` groups), so the rule must be satisfied independently for every one of the package's target frameworks. If the package has no detectable target frameworks, a `$(TFM)` entry is reported as an error rather than silently skipped.
+
+### Explicit/exhaustive content (`RequireExplicitContent`)
+
+When `RequireExplicitContent` is `true`, `RequiredContent` becomes the precise, exhaustive definition of every package's contents instead of a "must contain at least" list:
+
+- Every produced `.nupkg`'s package id must match a `RequiredContent` key; a generated package with no matching rule is an error.
+- Every entry in a matched package (after `$(TFM)` expansion) — excluding standard NuGet/OPC metadata (`.nuspec`, `[Content_Types].xml`, `_rels/`, `package/services/metadata/`, `.signature.p7s`) — must match one of that package's `RequiredContent` globs; any undeclared entry is reported as an error.
+
+`ForbiddenContent` is unaffected by `RequireExplicitContent` and continues to apply as a simple deny-list.
+
 ## Assembly inspection
 
 When any of `RequireSourceLink`, `RequireDeterministic`, or `RequiredCompilerFlags` is enabled, each `.dll`/`.exe` in the `.nupkg` that the package ships symbols for (a sibling PDB exists in the `.snupkg` or `.nupkg`) is inspected:

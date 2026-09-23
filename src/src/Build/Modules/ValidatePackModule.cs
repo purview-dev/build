@@ -177,12 +177,19 @@ public sealed class ValidatePackModule(
 			var files = reader.GetFiles().ToArray();
 			ValidateNoPdbFiles(files, errors);
 
+			var targetFrameworkFolderNames = (await reader.GetSupportedFrameworksAsync(cancellationToken))
+				.Select(framework => framework.GetShortFolderName())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray();
+
 			PackageInspector.ValidateContentRules(
 				files,
 				id,
 				settings.RequiredContent,
 				settings.ForbiddenContent,
-				errors
+				errors,
+				targetFrameworkFolderNames,
+				settings.RequireExplicitContent
 			);
 
 			if (PackageInspector.RequiresAssemblyInspection(settings))
@@ -243,7 +250,7 @@ public sealed class ValidatePackModule(
 
 			var files = reader.GetFiles().ToArray();
 			var nonSymbolFiles = files
-				.Where(file => !IsPdbFile(file) && !IsSymbolPackageMetadata(file))
+				.Where(file => !IsPdbFile(file) && !PackageInspector.IsPackageMetadata(file))
 				.ToArray();
 			if (nonSymbolFiles.Length > 0)
 				errors.Add(
@@ -313,12 +320,6 @@ public sealed class ValidatePackModule(
 
 	static bool IsPdbFile(string path) =>
 		string.Equals(Path.GetExtension(path), ".pdb", StringComparison.OrdinalIgnoreCase);
-
-	static bool IsSymbolPackageMetadata(string path) =>
-		string.Equals(path, "[Content_Types].xml", StringComparison.OrdinalIgnoreCase)
-		|| path.StartsWith("_rels/", StringComparison.OrdinalIgnoreCase)
-		|| path.StartsWith("package/services/metadata/", StringComparison.OrdinalIgnoreCase)
-		|| path.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase);
 
 	static string CreatePackageKey(string id, NuGetVersion version) =>
 		$"{id}|{version.ToNormalizedString()}";
