@@ -72,6 +72,6 @@ public sealed record PackValidationSettings
 	/// undeclared entry is an error.</item>
 	/// </list>
 	/// </summary>
-	/// <remarks>Defaults to <see langword="false"/>.</remarks>
-	public bool RequireExplicitContent { get; init; }
+	/// <remarks>Defaults to <see langword="true"/>.</remarks>
+	public bool RequireExplicitContent { get; init; } = true;
 }
