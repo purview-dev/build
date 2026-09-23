@@ -9,14 +9,15 @@
 		"RequireSymbolFiles": true,
 		"RequireSourceLink": true,
 		"RequireDeterministic": true,
+		"RequireExplicitContent": false,
 		"RequiredCompilerFlags": [
 			"optimization=release"
 		],
 		"RequiredContent": {
 			"purview.build": [
 				"tools/**/Purview.Build.dll",
+				"tools/**/appsettings.json",
 				"README.md",
-				"LICENSE.md",
 				"purview-logo-light.png"
 			]
 		},

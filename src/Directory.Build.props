@@ -21,13 +21,12 @@
 		<RepositoryType>git</RepositoryType>
 		<PackageIcon>purview-logo-light.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
 	</PropertyGroup>
 
 	<ItemGroup Label="NuGet package assets" Condition="'$(IsPackable)' == 'true'">
 		<None Include="$(MSBuildThisFileDirectory)/../README.md" Link="Sdk/README.md" />
-		<None Include="$(MSBuildThisFileDirectory)/../LICENSE.md" Link="Sdk/LICENSE.md" />
 		<None
 			Include="$(MSBuildThisFileDirectory)/../assets/images/purview-logo-light.png"
 			Link="Sdk/purview-logo-light.png"
