@@ -17,7 +17,7 @@ public sealed record BunCLIOptions : CommandLineToolOptions
 
 		var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 		var commandParts = parts[0].Equals("bun", StringComparison.OrdinalIgnoreCase)
-			? parts.Skip(1).ToArray()
+			? [.. parts.Skip(1)]
 			: parts;
 
 		return new() { Tool = "bun", CommandParts = commandParts };

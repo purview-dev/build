@@ -58,6 +58,20 @@ public class GlobTests
 	}
 
 	[Test]
+	public async Task AnalyzerPdb_IsAllowedInNupkg()
+	{
+		await Assert.That(PackageInspector.IsPdbAllowedInNupkg("analyzers/dotnet/cs/Sample.pdb")).IsTrue();
+		await Assert
+			.That(
+				PackageInspector.HasEmbeddedAnalyzerSymbols([
+					"analyzers/dotnet/cs/Sample.dll",
+					"analyzers/dotnet/cs/Sample.pdb",
+				])
+			)
+			.IsTrue();
+	}
+
+	[Test]
 	public async Task RequiredContent_GlobSatisfied_Passes()
 	{
 		List<string> errors = [];
@@ -127,5 +141,123 @@ public class GlobTests
 			errors
 		);
 		await Assert.That(errors).IsEmpty();
+	}
+
+	[Test]
+	public async Task TfmToken_ExpandsAndSatisfiesEachTargetFramework()
+	{
+		List<string> errors = [];
+		string[] files = ["lib/net8.0/Foo.dll", "lib/netstandard2.0/Foo.dll"];
+
+		PackageInspector.ValidateContentRules(
+			files,
+			"purview.build",
+			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll"] },
+			[],
+			errors,
+			targetFrameworkFolderNames: ["net8.0", "netstandard2.0"]
+		);
+
+		await Assert.That(errors).IsEmpty();
+	}
+
+	[Test]
+	public async Task TfmToken_MissingForOneFramework_ReportsError()
+	{
+		List<string> errors = [];
+		string[] files = ["lib/net8.0/Foo.dll"];
+
+		PackageInspector.ValidateContentRules(
+			files,
+			"purview.build",
+			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll"] },
+			[],
+			errors,
+			targetFrameworkFolderNames: ["net8.0", "netstandard2.0"]
+		);
+
+		await Assert.That(errors).Count().IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task TfmToken_NoFrameworksDetected_ReportsError()
+	{
+		List<string> errors = [];
+
+		PackageInspector.ValidateContentRules(
+			Files,
+			"purview.build",
+			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll"] },
+			[],
+			errors
+		);
+
+		await Assert.That(errors).Count().IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task ExplicitContent_AllDeclared_Passes()
+	{
+		List<string> errors = [];
+		string[] files = ["README.md", "lib/netstandard2.0/Foo.dll"];
+
+		PackageInspector.ValidateContentRules(
+			files,
+			"purview.build",
+			new() { ["purview.build"] = ["README.md", "lib/netstandard2.0/Foo.dll"] },
+			[],
+			errors,
+			requireExplicitContent: true
+		);
+
+		await Assert.That(errors).IsEmpty();
+	}
+
+	[Test]
+	public async Task ExplicitContent_UndeclaredFile_ReportsError()
+	{
+		List<string> errors = [];
+
+		PackageInspector.ValidateContentRules(
+			Files,
+			"purview.build",
+			new() { ["purview.build"] = ["README.md"] },
+			[],
+			errors,
+			requireExplicitContent: true
+		);
+
+		// README.md is declared; every other non-metadata file in `Files` is undeclared.
+		await Assert.That(errors).Count().IsEqualTo(Files.Length - 1);
+	}
+
+	[Test]
+	public async Task ExplicitContent_NoRuleForPackage_ReportsError()
+	{
+		List<string> errors = [];
+
+		PackageInspector.ValidateContentRules(
+			Files,
+			"some.other.package",
+			new() { ["purview.build"] = ["README.md"] },
+			[],
+			errors,
+			requireExplicitContent: true
+		);
+
+		await Assert.That(errors).Count().IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task IsPackageMetadata_DetectsOpcAndNuspecEntries()
+	{
+		await Assert.That(PackageInspector.IsPackageMetadata("[Content_Types].xml")).IsTrue();
+		await Assert.That(PackageInspector.IsPackageMetadata("_rels/.rels")).IsTrue();
+		await Assert
+			.That(PackageInspector.IsPackageMetadata("package/services/metadata/core-properties/abc.psmdcp"))
+			.IsTrue();
+		await Assert.That(PackageInspector.IsPackageMetadata("purview.build.nuspec")).IsTrue();
+		await Assert.That(PackageInspector.IsPackageMetadata(".signature.p7s")).IsTrue();
+		await Assert.That(PackageInspector.IsPackageMetadata("README.md")).IsFalse();
 	}
 }

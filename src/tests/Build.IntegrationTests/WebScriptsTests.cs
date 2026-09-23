@@ -30,7 +30,9 @@ public class WebScriptsTests
 	[Test]
 	public async Task ReadScripts_ParsesDeclaredScripts()
 	{
-		var repository = CreateTempRepository("""{"name":"site","scripts":{"build":"astro build","lint":"oxlint"}}""");
+		var repository = CreateTempRepository( /*lang=json,strict*/
+			"""{"name":"site","scripts":{"build":"astro build","lint":"oxlint"}}"""
+		);
 
 		try
 		{
@@ -69,7 +71,9 @@ public class WebScriptsTests
 	[Test]
 	public async Task ReadPackageName_ReturnsNameField()
 	{
-		var repository = CreateTempRepository("""{"name":"purview-dev","version":"0.1.0"}""");
+		var repository = CreateTempRepository( /*lang=json,strict*/
+			"""{"name":"purview-dev","version":"0.1.0"}"""
+		);
 
 		try
 		{

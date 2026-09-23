@@ -12,6 +12,10 @@ static class PackageInspector
 	static readonly Guid SourceLinkDebugInfoGuid = new("CC110556-A091-4D38-9FEC-25AB9A351A6A");
 	static readonly Guid CompilerFlagsDebugInfoGuid = new("B5FEEC05-8CD0-4A83-96DA-466284BB4BD8");
 
+	// Target-framework partial token, e.g. "lib/$(TFM)/Foo.dll" expands to one entry per
+	// target framework the package supports (short folder name, e.g. "net8.0", "net48").
+	const string TfmToken = "$(TFM)";
+
 	public static bool MatchesAny(string pattern, IEnumerable<string> paths)
 	{
 		Matcher matcher = new(StringComparison.OrdinalIgnoreCase);
@@ -24,21 +28,108 @@ static class PackageInspector
 		|| settings.RequireDeterministic
 		|| settings.RequiredCompilerFlags.Length > 0;
 
+	public static bool IsPdbAllowedInNupkg(string path) =>
+		path.StartsWith("tools/", StringComparison.OrdinalIgnoreCase)
+		|| path.StartsWith("analyzers/dotnet/", StringComparison.OrdinalIgnoreCase);
+
+	public static bool HasEmbeddedAnalyzerSymbols(IEnumerable<string> paths) =>
+		paths.Any(path =>
+			IsPdbFile(path) && path.StartsWith("analyzers/dotnet/", StringComparison.OrdinalIgnoreCase)
+		);
+
+	/// <summary>
+	/// True for standard NuGet/OPC package metadata entries that are never user-declared content:
+	/// the .nuspec, OPC parts ("[Content_Types].xml", "_rels/", "package/services/metadata/"),
+	/// and the package signature.
+	/// </summary>
+	public static bool IsPackageMetadata(string path) =>
+		string.Equals(path, "[Content_Types].xml", StringComparison.OrdinalIgnoreCase)
+		|| path.StartsWith("_rels/", StringComparison.OrdinalIgnoreCase)
+		|| path.StartsWith("package/services/metadata/", StringComparison.OrdinalIgnoreCase)
+		|| path.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase)
+		|| string.Equals(path, ".signature.p7s", StringComparison.OrdinalIgnoreCase);
+
+	/// <summary>
+	/// Expands the <c>$(TFM)</c> partial token in <paramref name="entry"/> into one concrete entry
+	/// per target framework folder name. Entries without the token are returned unchanged.
+	/// </summary>
+	public static IReadOnlyList<string> ExpandTfmToken(
+		string entry,
+		IReadOnlyCollection<string> targetFrameworkFolderNames
+	)
+	{
+		if (!entry.Contains(TfmToken, StringComparison.OrdinalIgnoreCase))
+			return [entry];
+
+		if (targetFrameworkFolderNames.Count == 0)
+			return [];
+
+		// Expand the $(TFM) token into one entry per target framework folder name.
+		return [.. targetFrameworkFolderNames.Select(tfm =>
+			entry.Replace(TfmToken, tfm, StringComparison.OrdinalIgnoreCase)
+		)];
+	}
+
 	public static void ValidateContentRules(
 		IReadOnlyList<string> files,
 		string packageId,
 		Dictionary<string, string[]> requiredRules,
 		Dictionary<string, string[]> forbiddenRules,
-		List<string> errors
+		List<string> errors,
+		IReadOnlyCollection<string>? targetFrameworkFolderNames = null,
+		bool requireExplicitContent = false
 	)
 	{
+		targetFrameworkFolderNames ??= [];
+
 		var required = GetContentRule(requiredRules, packageId);
-		if (required is not null)
+		if (required is null)
 		{
+			if (requireExplicitContent)
+				errors.Add(
+					$"Package '{packageId}' has no RequiredContent rule; RequireExplicitContent requires every generated package to declare its exact content."
+				);
+		}
+		else
+		{
+			List<string> allowedEntries = [];
 			foreach (var entry in required)
 			{
-				if (!MatchesAny(entry, files))
-					errors.Add($"Required content '{entry}' is missing from the package.");
+				var expanded = ExpandTfmToken(entry, targetFrameworkFolderNames);
+				if (expanded.Count == 0)
+				{
+					errors.Add(
+						$"Required content '{entry}' uses the '$(TFM)' partial but no target frameworks were detected in the package."
+					);
+					continue;
+				}
+
+				foreach (var candidate in expanded)
+				{
+					allowedEntries.Add(candidate);
+					if (!MatchesAny(candidate, files))
+					{
+						errors.Add(
+							candidate == entry
+								? $"Required content '{entry}' is missing from the package."
+								: $"Required content '{candidate}' (from '{entry}') is missing from the package."
+						);
+					}
+				}
+			}
+
+			if (requireExplicitContent)
+			{
+				foreach (var file in files)
+				{
+					if (IsPackageMetadata(file))
+						continue;
+
+					if (!allowedEntries.Any(entry => MatchesAny(entry, [file])))
+						errors.Add(
+							$"Package '{packageId}' contains undeclared content '{file}' that is not defined in RequiredContent."
+						);
+				}
 			}
 		}
 
@@ -47,8 +138,15 @@ static class PackageInspector
 		{
 			foreach (var entry in forbidden)
 			{
-				if (MatchesAny(entry, files))
-					errors.Add($"Forbidden content '{entry}' must not be in the package.");
+				foreach (var candidate in ExpandTfmToken(entry, targetFrameworkFolderNames))
+				{
+					if (MatchesAny(candidate, files))
+						errors.Add(
+							candidate == entry
+								? $"Forbidden content '{entry}' must not be in the package."
+								: $"Forbidden content '{candidate}' (from '{entry}') must not be in the package."
+						);
+				}
 			}
 		}
 	}
@@ -283,4 +381,7 @@ static class PackageInspector
 		return string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase)
 			|| string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase);
 	}
+
+	static bool IsPdbFile(string path) =>
+		string.Equals(Path.GetExtension(path), ".pdb", StringComparison.OrdinalIgnoreCase);
 }

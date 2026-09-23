@@ -110,6 +110,26 @@ public class PackageValidationTests
 		);
 	}
 
+	[Test]
+	public async Task ValidateAssemblies_AnalyzerPdbInNupkg_IsInspected(CancellationToken cancellationToken)
+	{
+		var (dll, _) = TestHelper.EmitAssembly(deterministic: true, cancellationToken);
+		var pdb = BuildValidPdb();
+
+		await ValidateInPackagesAsync(
+			[("analyzers/dotnet/cs/Sample.dll", dll), ("analyzers/dotnet/cs/Sample.pdb", pdb)],
+			[],
+			new PackValidationSettings
+			{
+				RequireSourceLink = true,
+				RequireDeterministic = true,
+				RequiredCompilerFlags = ["optimization=release"],
+			},
+			expectedErrors: 0,
+			cancellationToken: cancellationToken
+		);
+	}
+
 	static async Task ValidateInPackagesAsync(
 		(string Entry, byte[] Content)[] nupkgEntries,
 		(string Entry, byte[] Content)[] snupkgEntries,

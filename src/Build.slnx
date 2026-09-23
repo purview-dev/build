@@ -3,6 +3,7 @@
 		<File Path="../package.json" />
 		<File Path="Directory.Build.props" />
 		<File Path="Directory.Build.targets" />
+		<File Path="../purview-build.json" />
 		<File Path="../README.md" />
 		<File Path="../.editorconfig" />
 		<File Path="../global.json" />
