@@ -64,6 +64,7 @@ static class PackageInspector
 		if (targetFrameworkFolderNames.Count == 0)
 			return [];
 
+		// Expand the $(TFM) token into one entry per target framework folder name.
 		return [.. targetFrameworkFolderNames.Select(tfm =>
 			entry.Replace(TfmToken, tfm, StringComparison.OrdinalIgnoreCase)
 		)];

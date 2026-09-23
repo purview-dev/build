@@ -101,9 +101,11 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 			settings.Value.WebFormatCheckCommand,
 			"format check"
 		);
+
 		if (formatResult is not null)
 			return formatResult;
 
+		// If the format check passed, run the linter
 		return await RunIfDeclaredAsync(settings.Value.WebLintCommand, "lint");
 	}
 

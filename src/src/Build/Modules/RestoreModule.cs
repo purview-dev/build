@@ -25,6 +25,7 @@ public sealed class RestoreModule(IOptions<BuildSettings> settings) : Module<Com
 				);
 		}
 
+		// For non-web projects, perform a .NET restore
 		return await context
 			.DotNet()
 			.Restore(
