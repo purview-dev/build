@@ -21,6 +21,14 @@ The config binder does not map plain `NUGET_APIKEY`/`GITHUB_TOKEN`/`LOCAL_NUGET_
 
 The reusable workflows (`purview-build.yml`, `purview-release.yml`) forward the caller's `test-filter` and `test-projects` inputs as `Build__TestFilter`/`Build__TestProjects` **only when they are non-empty**. An empty forwarded value would override a consuming repository's `purview-build.json` (env vars take precedence over JSON) and silently disable the filter — see commit `4d72bf7`.
 
+## Diagnostics
+
+| Variable | Purpose |
+| --- | --- |
+| `PURVIEW_BUILD_STACKTRACE` | Set to `1` (or `true`) to include stack traces in failure reports. Unset, a failing run prints only the failing module and that module's output, then exits with code 1. |
+
+Pipeline verbosity is configured with `Build__LogLevel` (default `Information`, which reports each module's command output and progress); set `Build__LogLevel=Warning` for quiet CI logs.
+
 ## See also
 
 - [Configuration Reference](Configuration-Reference.md)

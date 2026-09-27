@@ -36,6 +36,8 @@ public sealed class CreateGitHubReleaseModule(
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(CreateGitHubReleaseModule));
+
 		var versionResult = await context.GetModule<VersionModule>();
 		var version =
 			versionResult.ValueOrDefault

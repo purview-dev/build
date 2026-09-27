@@ -32,6 +32,8 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(PackModule));
+
 		var versionResult = await context.GetModule<VersionModule>();
 		var nugetVersion =
 			versionResult.ValueOrDefault

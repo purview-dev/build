@@ -29,6 +29,8 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(LintModule));
+
 		var repositoryRoot = PathHelpers.FindRepositoryRoot();
 
 		if (settings.Value.ProjectType == ProjectType.Web)

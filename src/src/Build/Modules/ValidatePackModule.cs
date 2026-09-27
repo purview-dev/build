@@ -34,6 +34,8 @@ public sealed class ValidatePackModule(
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(ValidatePackModule));
+
 		var artifactsFolder = Path.GetFullPath(buildSettings.Value.ArtifactsFolder);
 		if (!Directory.Exists(artifactsFolder))
 		{

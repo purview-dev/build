@@ -20,4 +20,21 @@ static class PathHelpers
 			"Could not locate the repository root (no package.json found). Run the tool from within the repository."
 		);
 	}
+
+	/// <summary>
+	/// Deletes a directory and its contents when it exists and recreates it empty.
+	/// </summary>
+	/// <remarks>
+	/// Used to reset the artifacts folder before a pipeline run produces anything, so a later validation,
+	/// publish, or release upload can never observe output from an earlier run.
+	/// </remarks>
+	public static void ResetDirectory(string directory)
+	{
+		var fullPath = Path.GetFullPath(directory);
+
+		if (Directory.Exists(fullPath))
+			Directory.Delete(fullPath, recursive: true);
+
+		Directory.CreateDirectory(fullPath);
+	}
 }
