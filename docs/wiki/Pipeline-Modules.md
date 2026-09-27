@@ -80,7 +80,7 @@ Moves the `.nupkg`/`.snupkg` files from `Build:ArtifactsFolder` into the local f
 
 Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless `Release:Mode` is `NuGet` or `GitHubRelease` **and** a GitHub token resolves via `GitHub:GetGitHubToken()`.
 
-Creates a GitHub release with tag `v{version}` and `GenerateReleaseNotes = true`. Releases whose version is a prerelease (for example `2.0.0-prerelease.25`) are created as GitHub prereleases unless `Release:MarkPrerelease` is false, so prerelease builds are not presented as the latest stable release. When `Release:UploadArtifacts` is true, uploads every file in `Build:ArtifactsFolder` as a release asset — for Web projects this is the `<package-name>-<version>.zip` produced by `PackModule`. The tag must not already exist; callers gate release eligibility (the tool does not skip an existing tag itself).
+Creates a GitHub release with tag `v{version}` and `GenerateReleaseNotes = true`. Releases whose version is a prerelease (for example `2.0.0-prerelease.25`) are created as GitHub prereleases unless `Release:MarkPrerelease` is false, so prerelease builds are not presented as the latest stable release. This changes GitHub release metadata only: prerelease versions are still published to the NuGet feed — `PublishNuGetModule` is unaffected. When `Release:UploadArtifacts` is true, uploads every file in `Build:ArtifactsFolder` as a release asset — for Web projects this is the `<package-name>-<version>.zip` produced by `PackModule`. The tag must not already exist; callers gate release eligibility (the tool does not skip an existing tag itself).
 
 ## See also
 
