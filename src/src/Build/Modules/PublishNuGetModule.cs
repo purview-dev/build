@@ -40,6 +40,8 @@ public sealed class PublishNuGetModule(
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(PublishNuGetModule));
+
 		var artifactsFolder = buildSettings.Value.ArtifactsFolder;
 		if (!Directory.Exists(artifactsFolder))
 		{

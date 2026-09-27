@@ -6,7 +6,7 @@ public sealed class BuildSettings
 {
 	public const string SectionName = "Build";
 
-	public LogLevel LogLevel { get; init; } = LogLevel.Warning;
+	public LogLevel LogLevel { get; init; } = LogLevel.Information;
 
 	/// <summary>
 	/// The kind of repository the pipeline operates on. <see cref="ProjectType.DotNet"/> runs the
@@ -23,6 +23,14 @@ public sealed class BuildSettings
 
 	[Required(AllowEmptyStrings = false)]
 	public string ArtifactsFolder { get; init; } = "artifacts";
+
+	/// <summary>
+	/// When true, <see cref="CleanArtifactsModule"/> deletes and recreates <see cref="ArtifactsFolder"/> before
+	/// the pipeline produces any output, so validation, publishing, and release uploads only ever see the
+	/// artifacts from the current run. Ignored when <see cref="RunPack"/> is false (nothing will be packed, so
+	/// existing artifacts, such as a folder being inspected ahead of a publish, are left untouched).
+	/// </summary>
+	public bool CleanArtifacts { get; init; } = true;
 
 	public bool RunTests { get; init; } = true;
 

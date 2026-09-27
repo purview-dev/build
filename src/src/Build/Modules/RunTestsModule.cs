@@ -30,6 +30,8 @@ public sealed class RunTestsModule(IOptions<BuildSettings> settings) : Module<Co
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(RunTestsModule));
+
 		if (settings.Value.ProjectType == ProjectType.Web)
 		{
 			var repositoryRoot = PathHelpers.FindRepositoryRoot();

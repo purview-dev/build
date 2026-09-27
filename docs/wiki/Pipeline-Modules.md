@@ -1,13 +1,18 @@
 # Pipeline Modules
 
-The pipeline is a Modular Pipelines orchestration. Modules are registered in `Program.cs`; explicit `[DependsOn]` edges define ordering, while `ModuleConfiguration` skip conditions gate opt-in behavior. Module categories are `Build` and `Release`.
+The pipeline is a Modular Pipelines orchestration. Modules are registered in `BuildPipeline.cs` (`Program.cs` handles the CLI: informational options, the version banner, and failure reporting); explicit `[DependsOn]` edges define ordering, while `ModuleConfiguration` skip conditions gate opt-in behavior. Module categories are `Build` and `Release`.
+
+Each module logs a line when it starts (`Running BuildModule...`) before its command output, so long runs report progress in CI logs where the live progress display is disabled.
 
 ```text
-Version ───────────────┐
-Restore → Build → Test ├→ Pack → Validate → Publish → GitHub release
-   └→ Lint             │
-Version ───────────────┘
+CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish → GitHub release
 ```
+
+## CleanArtifactsModule
+
+Deletes `Build:ArtifactsFolder` (when it exists) and recreates it empty, before any other module runs. The folder is shared output: pack writes it, validation inspects every package in it, publishing moves packages out of it, and the release step can upload its contents — so a leftover package from an earlier (or differently configured) run would otherwise be validated, published, or uploaded as if it belonged to this run.
+
+`VersionModule` and `RestoreModule` depend on this module, so the reset completes before any other module starts. Skip conditions: skipped when `Build:CleanArtifacts` is false, or when `Build:RunPack` is false (nothing will be packed, so existing artifacts — for example a folder being inspected ahead of a manual publish — are left untouched).
 
 ## VersionModule
 
@@ -46,6 +51,8 @@ Per-project timings are logged, ordered by elapsed time.
 
 Depends on `RunTestsModule` and `VersionModule`. Skip condition: skipped when `Build:RunPack` is false.
 
+`CleanArtifactsModule` resets `Build:ArtifactsFolder` before the run produces anything, so the folder only contains packages from the current run.
+
 - **DotNet**: creates `Build:ArtifactsFolder` and runs `dotnet pack` against `Build:Solution` with `Build:Configuration`, `--output <ArtifactsFolder>`, and `-p:PackageVersion=<version> -p:Version=<version>` where the version comes from `VersionModule`.
 - **Web**: creates `Build:ArtifactsFolder` and zips `Build:WebBuildOutput` (default `src/dist`) into `<package-name>-<version>.zip` (name from the root `package.json` `name` field, version from `VersionModule`). Logs a warning and produces no artifact when the build output directory does not exist.
 
@@ -53,7 +60,7 @@ Depends on `RunTestsModule` and `VersionModule`. Skip condition: skipped when `B
 
 Depends on `PackModule`. Skip condition: skipped when `Build:ValidatePack` is false **or** `Build:ProjectType` is `Web` (Web projects produce no `.nupkg`).
 
-Inspects every `.nupkg`/`.snupkg` in `Build:ArtifactsFolder`. Fails the run if any package has errors. Produces a summary of valid/invalid package counts. See [Pack Validation](Pack-Validation.md) for the full rule set.
+Inspects every `.nupkg`/`.snupkg` in `Build:ArtifactsFolder`. Because `CleanArtifactsModule` cleared the folder at the start of the run, the packages inspected are exactly those the current run packed. Fails the run if any package has errors. Produces a summary of valid/invalid package counts. See [Pack Validation](Pack-Validation.md) for the full rule set.
 
 ## PublishNuGetModule
 

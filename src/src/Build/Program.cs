@@ -1,58 +1,42 @@
-var pipelineDirectory = PipelineProjectDirectory.Find();
-var repositoryRoot = PathHelpers.FindRepositoryRoot(Environment.CurrentDirectory);
+var informationalFlag = InformationalFlags.Parse(args);
 
-var builder = Pipeline.CreateBuilder(args);
-
-builder
-	.Configuration.AddJsonFile(Path.Combine(pipelineDirectory, "appsettings.json"), optional: false)
-	.AddJsonFile(Path.Combine(repositoryRoot, "purview-build.json"), optional: true)
-	.AddEnvironmentVariables()
-	.AddCommandLine(args);
-
-builder.Services.Configure<BuildSettings>(
-	builder.Configuration.GetSection(BuildSettings.SectionName)
-);
-builder.Services.Configure<NuGetSettings>(
-	builder.Configuration.GetSection(NuGetSettings.SectionName)
-);
-builder.Services.Configure<PackValidationSettings>(
-	builder.Configuration.GetSection(PackValidationSettings.SectionName)
-);
-builder.Services.Configure<PublishLocalNuGetSettings>(
-	builder.Configuration.GetSection(PublishLocalNuGetSettings.SectionName)
-);
-builder.Services.Configure<GitHubSettings>(
-	builder.Configuration.GetSection(GitHubSettings.SectionName)
-);
-builder.Services.Configure<ReleaseSettings>(
-	builder.Configuration.GetSection(ReleaseSettings.SectionName)
-);
-
-builder.Services.AddSingleton<IGitHubClient>(serviceProvider =>
+if (informationalFlag == InformationalFlag.Version)
 {
-	var settings = serviceProvider.GetRequiredService<IOptions<GitHubSettings>>();
-	var accessToken = settings.Value.GetGitHubToken();
+	CLIConsole.WriteLine(ToolInfo.VersionLine);
+	return 0;
+}
 
-	return new GitHubClient(
-		new(settings.Value.ProductHeader),
-		new InMemoryCredentialStore(new(accessToken))
-	);
-});
+if (informationalFlag == InformationalFlag.Help)
+{
+	CLIConsole.WriteLine(ToolInfo.HelpText);
+	return 0;
+}
 
-Environment.CurrentDirectory = repositoryRoot;
+// Identify the tool up front, so CI job logs and local runs show which build tool executed the pipeline.
+CLIConsole.WriteLine(ToolInfo.VersionLine);
+CLIConsole.WriteLine();
 
-builder
-	.AddModule<VersionModule>()
-	.AddModule<RestoreModule>()
-	.AddModule<BuildModule>()
-	.AddModule<LintModule>()
-	.AddModule<RunTestsModule>()
-	.AddModule<PackModule>()
-	.AddModule<ValidatePackModule>()
-	.AddModule<PublishNuGetModule>()
-	.AddModule<PublishLocalNuGetModule>()
-	.AddModule<CreateGitHubReleaseModule>();
+try
+{
+	var failures = await BuildPipeline.RunAsync(args);
 
-await using var pipeline = await builder.BuildAsync();
+	if (failures.Count == 0)
+		return 0;
 
-await pipeline.RunAsync();
+	CLIConsole.WriteLine();
+	CLIConsole.WriteLine($"{ToolInfo.Name} failed: {failures.Count} module(s) failed.");
+
+	foreach (var failure in failures)
+	{
+		CLIConsole.WriteLine();
+		CLIConsole.WriteLine(FailureReport.Format(failure.ModuleName, failure.ExceptionOrDefault!));
+	}
+
+	return 1;
+}
+catch (Exception exception)
+{
+	CLIConsole.WriteLine();
+	CLIConsole.WriteLine(FailureReport.Format($"{ToolInfo.Name} failed", exception));
+	return 1;
+}

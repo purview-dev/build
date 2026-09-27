@@ -10,15 +10,26 @@ Command line > environment variables > `purview-build.json` > baked-in defaults 
 - Command-line overrides use configuration syntax, for example `--Build:RunPack=false`.
 - Secrets must not be committed; they are supplied at runtime through env vars / CI secrets. See [Secrets and Environment Variables](Secrets-and-Environment-Variables.md).
 
+### Informational options
+
+| Option | Behaviour |
+| --- | --- |
+| `-v`, `--version` | Print the tool version and exit without running the pipeline. |
+| `-h`, `--help`, `-?` | Print usage, options, and configuration keys, then exit. |
+
+Failures are reported the way a CLI build tool reports them: the tool prints the failing module and that module's
+output, then exits with code 1. Set `PURVIEW_BUILD_STACKTRACE=1` to add stack traces when diagnosing the tool itself.
+
 ## `Build`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `LogLevel` | `Warning` | `Trace`/`Debug`/`Information`/`Warning`/`Error`/`Critical`/`None`; used by the pipeline logger |
+| `LogLevel` | `Information` | `Trace`/`Debug`/`Information`/`Warning`/`Error`/`Critical`/`None`; applied to the pipeline logger. `Information` reports every module's command output, progress, and completion; `Warning` keeps CI logs quiet |
 | `ProjectType` | `DotNet` | `DotNet` (dotnet restore/build/test/pack) or `Web` (Bun commands from the root `package.json` scripts) |
 | `Solution` | `src/Product.slnx` | Solution, project, or directory passed to restore/build/pack (dotnet only) |
 | `Configuration` | `Release` | .NET configuration |
 | `ArtifactsFolder` | `artifacts` | Package output directory |
+| `CleanArtifacts` | `true` | Delete and recreate `ArtifactsFolder` before the run produces anything, so validation, publishing, and release uploads only see the current run's packages. Ignored when `RunPack` is `false` |
 | `RunTests` | `true` | Enable discovered tests |
 | `TestRoot` | `src/tests` | Test discovery root (relative to the repository root) |
 | `TestPatterns` | `*Tests.csproj` | Comma-separated project search patterns applied under `TestRoot` |

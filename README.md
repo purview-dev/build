@@ -94,6 +94,22 @@ dotnet tool install Purview.Build --tool-path ./.tools
 
 Omit `--version` to install the latest stable release.
 
+### Command line
+
+The tool behaves like any other CLI build tool:
+
+```shell
+purview-build --version   # print the tool version and exit
+purview-build -v          # same
+purview-build --help      # usage, options, and configuration keys
+```
+
+Every run prints the tool version first, then a line for each module as it starts (`Running BuildModule...`) followed by
+its completion and duration. A failing run reports the failed module and that module's output, then exits with code 1
+instead of dumping a .NET stack trace; set `PURVIEW_BUILD_STACKTRACE=1` when you need the stack trace for diagnosing the
+tool itself. Verbosity is controlled by `Build:LogLevel` (default `Information`, which includes each module's command
+output and progress).
+
 ## Configuration
 
 Add `purview-build.json` at the repository root. Everything is optional; defaults are baked into the tool. Configuration precedence is command line, environment variables, `purview-build.json`, then defaults. Nested environment keys use `__`, for example `Release__Mode=NuGet`.
@@ -130,13 +146,10 @@ See the [Documentation](#documentation) section below for the architecture, conf
 ## Pipeline
 
 ```text
-Version ───────────────┐
-Restore → Build → Test ├→ Pack → Validate → Publish → GitHub release
-   └→ Lint             │
-Version ───────────────┘
+CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → Validate → Publish → GitHub release
 ```
 
-`Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
+`CleanArtifacts` deletes and recreates `Build:ArtifactsFolder` before anything else runs, so pack, validation, publishing, and release uploads only ever see the packages from the current run (set `Build:CleanArtifacts=false` to keep existing artifacts). `Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
 
 ## Repository CI/CD
 

@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Purview.Build.Modules;
 
 [ModuleCategory("Build")]
+[DependsOn<CleanArtifactsModule>]
 public sealed class RestoreModule(IOptions<BuildSettings> settings) : Module<CommandResult>
 {
 	protected override async Task<CommandResult?> ExecuteAsync(
@@ -16,6 +17,8 @@ public sealed class RestoreModule(IOptions<BuildSettings> settings) : Module<Com
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(RestoreModule));
+
 		if (settings.Value.ProjectType == ProjectType.Web)
 		{
 			return await context

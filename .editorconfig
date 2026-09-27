@@ -2694,3 +2694,8 @@ generated_code = true
 [**/bin/**/*.cs]
 # Compiler/build output (generated AssemblyInfo, GlobalUsings, etc.)
 generated_code = true
+
+# The CLI entry point is a process boundary: it turns any failure into a concise message and a non-zero exit
+# code rather than letting .NET report an unhandled exception and stack trace.
+[src/src/Build/Program.cs]
+dotnet_diagnostic.CA1031.severity = none

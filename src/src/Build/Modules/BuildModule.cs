@@ -16,6 +16,8 @@ public sealed class BuildModule(IOptions<BuildSettings> settings) : Module<Comma
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(BuildModule));
+
 		if (settings.Value.ProjectType == ProjectType.Web)
 		{
 			var repositoryRoot = PathHelpers.FindRepositoryRoot();

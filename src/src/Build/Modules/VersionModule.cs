@@ -8,6 +8,7 @@ using System.Text.Json;
 namespace Purview.Build.Modules;
 
 [ModuleCategory("Build")]
+[DependsOn<CleanArtifactsModule>]
 public sealed class VersionModule : Module<NuGetVersion>
 {
 	protected override async Task<NuGetVersion?> ExecuteAsync(
@@ -15,6 +16,8 @@ public sealed class VersionModule : Module<NuGetVersion>
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(VersionModule));
+
 		var packageJsonPath = Path.Combine(Environment.CurrentDirectory, "package.json");
 
 		if (!File.Exists(packageJsonPath))

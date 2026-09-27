@@ -37,6 +37,8 @@ public sealed class PublishLocalNuGetModule(
 		CancellationToken cancellationToken
 	)
 	{
+		ModuleProgress.Starting(context, nameof(PublishLocalNuGetModule));
+
 		var settings = localNuGetFeedSettings.Value;
 		var localFeedPath = settings.GetLocalFeedPath();
 

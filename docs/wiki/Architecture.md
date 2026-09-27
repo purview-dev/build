@@ -19,17 +19,17 @@ The package owns module implementation, dependency ordering, safe defaults, secr
 
 ## Module ordering
 
-The pipeline is registered in `Program.cs` in this order, with explicit `[DependsOn]` edges defining the graph:
+The pipeline is registered in `BuildPipeline.cs` (`Program.cs` is the CLI boundary: informational options, the version banner, configuration binding, and failure reporting) in this order, with explicit `[DependsOn]` edges defining the graph:
 
 ```text
-VersionModule ──────────────┐
-RestoreModule → BuildModule ├→ RunTestsModule → PackModule → ValidatePackModule
-RestoreModule → LintModule  │
-VersionModule ──────────────┘
+CleanArtifactsModule → RestoreModule → BuildModule → RunTestsModule ─┐
+CleanArtifactsModule → RestoreModule → LintModule                    ├→ PackModule → ValidatePackModule
+CleanArtifactsModule → VersionModule ────────────────────────────────┘
 ```
 
 Explicit `[DependsOn]` edges:
 
+- `VersionModule` and `RestoreModule` depend on `CleanArtifactsModule`, so the artifacts folder is reset before any other module starts.
 - `BuildModule` depends on `RestoreModule`.
 - `LintModule` depends on `RestoreModule` (Web lint needs the dependencies installed by `bun install`; dotnet lint is unaffected beyond running after restore).
 - `RunTestsModule` depends on `BuildModule`.

@@ -2,6 +2,8 @@
 
 `ValidatePackModule` inspects every `.nupkg`/`.snupkg` produced in `Build:ArtifactsFolder` and fails the pipeline when any package has validation errors. Each package is reported as valid/invalid in the summary.
 
+`CleanArtifactsModule` resets `Build:ArtifactsFolder` before the run produces anything (see [Pipeline Modules](Pipeline-Modules.md)), so validation only ever inspects the packages the current run packed — a leftover package from an earlier or differently configured build cannot fail (or pass) validation. Set `Build:CleanArtifacts=false` to keep existing artifacts.
+
 ## Symbol package pairing (`RequireSymbolPackage`)
 
 Every `.nupkg` must have a matching `.snupkg` (same id/version) and vice versa. A package without its symbol sibling is an error.
