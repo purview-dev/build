@@ -55,13 +55,27 @@ public sealed class CreateGitHubReleaseModule(
 			);
 		}
 
-		// Create a new release on GitHub with the specified tag and generate release notes
+		// Create a new release on GitHub with the specified tag and generate release notes.
+		// Prerelease versions are published as prereleases so they are not presented as the
+		// latest stable release.
+		var isPrerelease = releaseSettings.Value.ShouldMarkPrerelease(version);
 		var release = await context
 			.GitHub()
 			.Client.Repository.Release.Create(
 				repositoryId,
-				new NewRelease(tag) { Name = tag, GenerateReleaseNotes = true }
+				new NewRelease(tag)
+				{
+					Name = tag,
+					GenerateReleaseNotes = true,
+					Prerelease = isPrerelease,
+				}
 			);
+
+		context.Logger.LogInformation(
+			"Created GitHub release {Tag}{Prerelease}.",
+			tag,
+			isPrerelease ? " as a prerelease" : string.Empty
+		);
 
 		if (releaseSettings.Value.UploadArtifacts)
 		{

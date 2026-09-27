@@ -96,6 +96,7 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | --- | --- | --- |
 | `Mode` | `None` | `None`, `LocalNuGet`, `NuGet`, or `GitHubRelease` |
 | `UploadArtifacts` | `false` | Upload every file in `Build:ArtifactsFolder` as GitHub release assets |
+| `MarkPrerelease` | `true` | Create the GitHub release as a prerelease when the package version is a prerelease (for example `2.0.0-prerelease.25`) |
 
 ## Example
 
