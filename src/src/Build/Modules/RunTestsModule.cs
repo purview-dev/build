@@ -45,9 +45,13 @@ public sealed class RunTestsModule(IOptions<BuildSettings> settings) : Module<Co
 		}
 
 		var testRoot = settings.Value.TestRoot;
+
+		// Enumerate with an absolute root so `dotnet test` receives an absolute `--project`:
+		// the Microsoft.Testing.Platform runner in .NET 11 RC1 duplicates the directory
+		// segments of a relative project path for multi-targeted projects (dotnet/sdk#56196).
 		var testProjects = FilterTestProjects(
 			Directory
-				.EnumerateFiles(testRoot, "*.csproj", SearchOption.AllDirectories)
+				.EnumerateFiles(Path.GetFullPath(testRoot), "*.csproj", SearchOption.AllDirectories)
 				.Where(project => IsTestProject(project, settings.Value.TestPatterns))
 				.ToList(),
 			settings.Value.TestProjects

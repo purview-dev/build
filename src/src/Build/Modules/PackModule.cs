@@ -47,7 +47,7 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 			return PackWebArtifact(context, nugetVersion.ToString());
 
 		var version = nugetVersion.ToString();
-		return await context
+		var result = await context
 			.DotNet()
 			.Pack(
 				new DotNetPackOptions
@@ -59,6 +59,10 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 				},
 				cancellationToken: cancellationToken
 			);
+
+		context.Logger.LogInformation("Packed version {Version}.", version);
+
+		return result;
 	}
 
 	CommandResult? PackWebArtifact(IModuleContext context, string version)
@@ -94,6 +98,7 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 			"Packed Web build output into {ZipPath}.",
 			Path.GetFileName(zipPath)
 		);
+		context.Logger.LogInformation("Packed version {Version}.", version);
 
 		return null;
 	}
