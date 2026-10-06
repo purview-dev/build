@@ -42,6 +42,7 @@ sealed class Rel006FourPartVersionRule : IEligibilityRule
 				$"Four-part version {input.RawVersion} is released from '{input.Context.Ref}'."
 			);
 
+		// The ref does not match the policy's allowed refs for four-part releases.
 		return RuleResult.Fail(
 			Id,
 			$"Four-part version {input.RawVersion} cannot be released from '{input.Context.Ref}'. "

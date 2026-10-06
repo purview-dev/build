@@ -17,8 +17,8 @@ public sealed class CreateGitHubReleaseModule(
 	IOptions<ReleaseSettings> releaseSettings,
 	IOptions<GitHubSettings> gitSettings,
 	IOptions<BuildSettings> buildSettings
-	// Octokit.Release is qualified throughout: Purview.Build.Release is a namespace in this
-	// assembly, so the unqualified name is ambiguous here.
+// Octokit.Release is qualified throughout: Purview.Build.Release is a namespace in this
+// assembly, so the unqualified name is ambiguous here.
 ) : Module<Octokit.Release[]>
 {
 	protected override ModuleConfiguration Configure() =>

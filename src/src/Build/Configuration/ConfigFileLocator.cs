@@ -61,6 +61,7 @@ static class ConfigFileLocator
 			};
 		}
 
+		// No explicit path was supplied, so probe the repository for a config file.
 		return Probe(repositoryRoot, userConfigPath, userConfigActive, userConfigSkipReason);
 	}
 

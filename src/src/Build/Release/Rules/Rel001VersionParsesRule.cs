@@ -33,6 +33,7 @@ sealed class Rel001VersionParsesRule : IEligibilityRule
 					+ "four-part versions."
 			);
 
+		// The version is known and satisfies the configured strictness.
 		return RuleResult.Pass(Id, $"Version '{input.RawVersion}' is valid for {input.Strictness} strictness.");
 	}
 }

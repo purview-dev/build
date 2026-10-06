@@ -34,6 +34,7 @@ sealed class Rel004ServicingPatchRule : IEligibilityRule
 				$"Servicing version {unit.Version} is released from '{input.Context.Ref}'."
 			);
 
+		// The ref does not match the policy's allowed refs for servicing releases.
 		return RuleResult.Fail(
 			Id,
 			$"Version {unit.Version} has a non-zero PATCH component and cannot be released from "

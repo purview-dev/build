@@ -43,10 +43,10 @@ public class GitContextTests
 		try
 		{
 			// Act
-			var act = () => PathHelpers.FindRepositoryRoot(directory);
+			string Act() => PathHelpers.FindRepositoryRoot(directory);
 
 			// Assert
-			var exception = await Assert.That(act).Throws<InvalidOperationException>();
+			var exception = await Assert.That((Func<string>)Act).Throws<InvalidOperationException>();
 			await Assert.That(exception!.Message).Contains("package.json");
 		}
 		finally
@@ -166,10 +166,11 @@ public class GitContextTests
 		ReleaseContextSettings settings = new() { ExistingTags = "does-not-exist.txt" };
 
 		// Act
-		var act = () => fixture.InWorkingDirectory(() => ReleaseContextProvider.Resolve(settings, fixture.Root));
+		ReleaseContext Act() =>
+			fixture.InWorkingDirectory(() => ReleaseContextProvider.Resolve(settings, fixture.Root));
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("Release:Context:ExistingTags");
 		await Assert.That(exception!.Message).Contains("does-not-exist.txt");
 	}

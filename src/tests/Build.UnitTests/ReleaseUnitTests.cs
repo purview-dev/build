@@ -183,9 +183,9 @@ public class ReleaseUnitTests
 		ReleaseUnitSet set = new("1.0.0", [], nameof(VersionSource.PackageJson));
 
 		// Act
-		var act = () => set.Primary;
+		ReleaseUnit Act() => set.Primary;
 
 		// Assert
-		await Assert.That(act).Throws<InvalidOperationException>();
+		await Assert.That(Act).Throws<InvalidOperationException>();
 	}
 }

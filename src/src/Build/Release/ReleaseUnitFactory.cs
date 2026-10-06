@@ -19,6 +19,7 @@ static class ReleaseUnitFactory
 		if (string.IsNullOrWhiteSpace(rawVersion) || !NuGetVersion.TryParse(rawVersion, out var version))
 			return null;
 
+		// The version is known, so build a unit. The unit's tag is the version exactly as written in
 		return new ReleaseUnit(
 			Id: version.ToNormalizedString(),
 			Version: version,
@@ -49,6 +50,7 @@ static class ReleaseUnitFactory
 		if (string.IsNullOrWhiteSpace(rawVersion))
 			return false;
 
+		// NuGetVersion and SemanticVersion are both strict parsers, so the only difference is that
 		return strictness == VersionStrictness.SemVer2
 			? SemanticVersion.TryParse(rawVersion, out _)
 			: NuGetVersion.TryParse(rawVersion, out _);
