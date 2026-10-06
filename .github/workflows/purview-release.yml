@@ -10,7 +10,10 @@ on:
         required: false
         type: string
       dotnet-version:
-        description: .NET SDK used by the consuming repository.
+        description: >-
+          .NET SDK used by the consuming repository. Ignored when global.json pins an sdk.version,
+          because every dotnet command resolves against global.json and installing anything else
+          fails the job.
         required: false
         default: 10.0.x
         type: string
@@ -119,9 +122,30 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # global.json is the single source of truth for the SDK whenever it pins one; see the matching
+      # step in purview-build.yml. When it pins nothing, the dotnet-version input applies.
+      - name: Resolve the .NET SDK version
+        id: resolve-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pinned=""
+          if [ -f global.json ]; then
+            pinned="$(jq -r '.sdk.version // empty' global.json)"
+          fi
+
+          if [ -n "$pinned" ]; then
+            echo "global.json pins $pinned; installing that."
+            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+          else
+            echo "global.json pins no sdk.version; using the dotnet-version input (${{ inputs.dotnet-version }})."
+            echo "dotnet-version=${{ inputs.dotnet-version }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ inputs.dotnet-version }}
+          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@v2
 
