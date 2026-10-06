@@ -665,3 +665,5 @@ BenchmarkDotNet.Artifacts/
 
 # Throwaway repositories created by the release/config scenario matrices
 .scenario-runs/
+
+!src/src/Build/Release
