@@ -23,13 +23,13 @@ public sealed class PublishNuGetModule(
 			.Create()
 			.WithSkipWhen(_ =>
 				buildSettings.Value.ProjectType == ProjectType.Web
-				|| releaseSettings.Value.Mode != ReleaseMode.NuGet
+				|| !releaseSettings.Value.ShouldPublish()
 				|| (
 					!nugetSettings.Value.TrustedPublishing
 					&& string.IsNullOrWhiteSpace(nugetSettings.Value.GetNuGetAPIKey())
 				)
 					? SkipDecision.Skip(
-						"NuGet publishing is disabled. Set Release__Mode=NuGet and either NuGet__ApiKey (or NUGET_APIKEY) or NuGet__TrustedPublishing=true to publish packages."
+						"NuGet publishing is disabled. Set Release__Mode=NuGet (or Release__Publish=true) and either NuGet__ApiKey (or NUGET_APIKEY) or NuGet__TrustedPublishing=true to publish packages."
 					)
 					: SkipDecision.DoNotSkip
 			)
@@ -62,6 +62,24 @@ public sealed class PublishNuGetModule(
 			);
 		}
 
+		// The channel's feed wins over NuGet:FeedUrl, so a preview channel can target a different
+		// feed without the caller rewriting NuGet:FeedUrl for every run.
+		var feedUrl = releaseSettings.Value.ResolveChannel().FeedUrl ?? nugetSettings.Value.FeedUrl;
+
+		if (releaseSettings.Value.DryRun)
+		{
+			foreach (var package in packages)
+			{
+				context.Logger.LogInformation(
+					"Release:DryRun is set. Would have pushed {Package} to {FeedUrl}.",
+					Path.GetFileName(package),
+					feedUrl
+				);
+			}
+
+			return [];
+		}
+
 		var tasks = packages.Select(package =>
 			context
 				.DotNet()
@@ -69,7 +87,7 @@ public sealed class PublishNuGetModule(
 					new()
 					{
 						Path = package,
-						Source = nugetSettings.Value.FeedUrl,
+						Source = feedUrl,
 						ApiKey = nugetSettings.Value.TrustedPublishing
 							? null
 							: nugetSettings.Value.GetNuGetAPIKey(),

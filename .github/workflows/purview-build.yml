@@ -47,8 +47,19 @@ on:
         description: Comma-separated test project names/globs to run (Build__TestProjects).
         required: false
         type: string
+      config-path:
+        description: >-
+          Explicit purview-build.json location (PURVIEW_BUILD_CONFIG). When omitted, the tool uses
+          its documented probe order starting at the repository root.
+        required: false
+        type: string
     secrets:
       NUGET_APIKEY:
+        required: false
+      # Declared because consuming repositories historically store the key under this name and the
+      # job forwards it as NUGET_API_KEY. A secret referenced but not declared here resolves only
+      # under `secrets: inherit`; declaring it makes the contract explicit either way.
+      NUGET__APIKEY:
         required: false
 
 permissions:
@@ -102,5 +113,8 @@ jobs:
           fi
           if [ -n "${{ inputs.test-projects }}" ]; then
             export Build__TestProjects="${{ inputs.test-projects }}"
+          fi
+          if [ -n "${{ inputs.config-path }}" ]; then
+            export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
           fi
           "${{ runner.temp }}/purview-build/purview-build"

@@ -1,44 +1,52 @@
 using ModularPipelines.Attributes;
 using ModularPipelines.Context;
 using ModularPipelines.Modules;
-using NuGet.Versioning;
+using Purview.Build.Release;
+using Purview.Build.Version;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
 
 namespace Purview.Build.Modules;
 
+/// <summary>
+/// Resolves the release units once, so every downstream module reads the same version rather than
+/// recomputing it.
+/// </summary>
 [ModuleCategory("Build")]
 [DependsOn<CleanArtifactsModule>]
-public sealed class VersionModule : Module<NuGetVersion>
+public sealed class VersionModule(
+	IOptions<VersionSettings> versionSettings,
+	IOptions<ReleaseSettings> releaseSettings
+) : Module<ReleaseUnitSet>
 {
-	protected override async Task<NuGetVersion?> ExecuteAsync(
+	protected override async Task<ReleaseUnitSet?> ExecuteAsync(
 		[NotNull] IModuleContext context,
 		CancellationToken cancellationToken
 	)
 	{
 		ModuleProgress.Starting(context, nameof(VersionModule));
 
-		var packageJsonPath = Path.Combine(Environment.CurrentDirectory, "package.json");
+		var provider = VersionProviders.For(versionSettings.Value.Source);
 
-		if (!File.Exists(packageJsonPath))
-			throw new FileNotFoundException($"Could not find package.json at {packageJsonPath}");
+		var units = await provider.ResolveAsync(
+			new VersionProviderContext(
+				RepositoryRoot: Environment.CurrentDirectory,
+				ChannelName: releaseSettings.Value.Channel,
+				Strictness: versionSettings.Value.Strictness
+			),
+			cancellationToken
+		);
 
-		var packageJson = await File.ReadAllTextAsync(packageJsonPath, cancellationToken);
+		context.Summary.KeyValue("Version", "Package version", units.RawVersion);
 
-		using var document = JsonDocument.Parse(packageJson);
-		var version = document.RootElement.GetProperty("version").GetString();
-
-		if (string.IsNullOrWhiteSpace(version))
-			throw new InvalidOperationException(
-				"The version field in package.json is missing or empty."
+		if (units.Units.Count > 1)
+		{
+			context.Summary.KeyValue(
+				"Version",
+				"Release units",
+				string.Join(", ", units.Units.Select(unit => unit.Id))
 			);
+		}
 
-		if (!NuGetVersion.TryParse(version, out var nugetVersion))
-			throw new InvalidOperationException(
-				$"The version '{version}' in package.json is not a valid SemVer."
-			);
-
-		context.Summary.KeyValue("Version", "Package version", version);
-		return nugetVersion;
+		return units;
 	}
 }

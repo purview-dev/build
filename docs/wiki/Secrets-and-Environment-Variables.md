@@ -11,21 +11,29 @@ Command line > environment variables > `purview-build.json` > baked-in defaults.
 | Secret | Where it is used | Environment-var bound alias |
 | --- | --- | --- |
 | `NUGET_APIKEY` | NuGet push | `NuGet__NUGET_APIKEY` (binds `EnvAPIKey`); also read directly from process env `NUGET_APIKEY`/`NUGET_API_KEY` |
-| `NuGet__ApiKey` | NuGet push | `APIKey` |
+| `NuGet__APIKey` | NuGet push | `APIKey`. Configuration keys are case-insensitive, so the historical `NUGET__APIKEY` secret name binds here too |
 | `GITHUB_TOKEN` | GitHub release creation | `GitHub__GITHUB_TOKEN` (binds `EnvAccessToken`); also read directly from process env `GITHUB_TOKEN` |
 | `LOCAL_NUGET_FEED_PATH` | Local NuGet publishing | `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH` (binds `EnvLocalFeedPath`); also read directly from process env `LOCAL_NUGET_FEED_PATH` |
 
 The config binder does not map plain `NUGET_APIKEY`/`GITHUB_TOKEN`/`LOCAL_NUGET_FEED_PATH` process env vars under their settings sections, so the settings classes fall back to reading the process environment directly.
 
-## Test filter forwarding
+## Optional-input forwarding
 
-The reusable workflows (`purview-build.yml`, `purview-release.yml`) forward the caller's `test-filter` and `test-projects` inputs as `Build__TestFilter`/`Build__TestProjects` **only when they are non-empty**. An empty forwarded value would override a consuming repository's `purview-build.json` (env vars take precedence over JSON) and silently disable the filter — see commit `4d72bf7`.
+The reusable workflows (`purview-build.yml`, `purview-release.yml`) forward every **optional** input only when it is non-empty: `test-filter`, `test-projects`, `config-path`, `eligibility-policy`, `release-channel`, and `version-source`. An empty forwarded value would override a consuming repository's `purview-build.json` (env vars take precedence over JSON) and silently erase a configured value — see commit `4d72bf7`.
 
-## Diagnostics
+Inputs that declare a `default:` (for example `release-mode`, `run-tests`) are never empty and are mapped directly into `env:`.
+
+This is enforced by a test (`WorkflowParityTests`), which asserts that every `Section__Key` the workflows set resolves to a real settings property, and that no optional input is mapped straight into `env:` without an `if [ -n … ]` guard.
+
+## Configuration and diagnostics variables
 
 | Variable | Purpose |
 | --- | --- |
+| `PURVIEW_BUILD_CONFIG` | Selects **which** `purview-build.json` to read (`--config` wins over it). An explicit path that does not exist is an error, never a silent fallback. |
+| `PURVIEW_BUILD_USER_CONFIG` | Set to `1` (or `true`) to also read machine-local user configuration. Ignored when not running locally. |
 | `PURVIEW_BUILD_STACKTRACE` | Set to `1` (or `true`) to include stack traces in failure reports. Unset, a failing run prints only the failing module and that module's output, then exits with code 1. |
+| `MODULAR_PIPELINES_DIRECTORY` | The directory containing the tool's shipped `appsettings.json`. Unrelated to `purview-build.json` discovery. |
+| `GITHUB_REF` | Read by the eligibility rules as the evaluated ref, unless `Release:Context:Ref` overrides it. |
 
 Pipeline verbosity is configured with `Build__LogLevel` (default `Information`, which reports each module's command output and progress); set `Build__LogLevel=Warning` for quiet CI logs.
 

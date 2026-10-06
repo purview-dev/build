@@ -5,6 +5,7 @@ using ModularPipelines.DotNet.Extensions;
 using ModularPipelines.DotNet.Options;
 using ModularPipelines.Models;
 using ModularPipelines.Modules;
+using Purview.Build.Release;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 
@@ -13,7 +14,7 @@ namespace Purview.Build.Modules;
 [ModuleCategory("Build")]
 [DependsOn<RunTestsModule>]
 [DependsOn<VersionModule>]
-public sealed class PackModule(IOptions<BuildSettings> settings) : Module<CommandResult>
+public sealed class PackModule(IOptions<BuildSettings> settings) : Module<CommandResult[]>
 {
 	protected override ModuleConfiguration Configure() =>
 		ModuleConfiguration
@@ -27,7 +28,7 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 			)
 			.Build();
 
-	protected override async Task<CommandResult?> ExecuteAsync(
+	protected override async Task<CommandResult[]?> ExecuteAsync(
 		[NotNull] IModuleContext context,
 		CancellationToken cancellationToken
 	)
@@ -35,7 +36,7 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 		ModuleProgress.Starting(context, nameof(PackModule));
 
 		var versionResult = await context.GetModule<VersionModule>();
-		var nugetVersion =
+		var units =
 			versionResult.ValueOrDefault
 			?? throw new InvalidOperationException(
 				"The version was not produced by the version module."
@@ -43,10 +44,32 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 
 		Directory.CreateDirectory(settings.Value.ArtifactsFolder);
 
-		if (settings.Value.ProjectType == ProjectType.Web)
-			return PackWebArtifact(context, nugetVersion.ToString());
+		List<CommandResult> results = [];
 
-		var version = nugetVersion.ToString();
+		// Every version source yields a single unit today; packing per unit means a future
+		// multi-unit source needs no change here.
+		foreach (var unit in units.Units)
+		{
+			if (settings.Value.ProjectType == ProjectType.Web)
+			{
+				PackWebArtifact(context, unit);
+				continue;
+			}
+
+			results.Add(await PackDotNetAsync(context, unit, cancellationToken));
+		}
+
+		return [.. results];
+	}
+
+	async Task<CommandResult> PackDotNetAsync(
+		IModuleContext context,
+		ReleaseUnit unit,
+		CancellationToken cancellationToken
+	)
+	{
+		var version = unit.Version.ToString();
+
 		var result = await context
 			.DotNet()
 			.Pack(
@@ -65,8 +88,9 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 		return result;
 	}
 
-	CommandResult? PackWebArtifact(IModuleContext context, string version)
+	void PackWebArtifact(IModuleContext context, ReleaseUnit unit)
 	{
+		var version = unit.Version.ToString();
 		var repositoryRoot = PathHelpers.FindRepositoryRoot();
 		var packageName = WebScripts.ReadPackageName(repositoryRoot);
 
@@ -80,7 +104,7 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 				settings.Value.WebBuildOutput
 			);
 
-			return null;
+			return;
 		}
 
 		var zipPath = Path.Combine(
@@ -99,7 +123,5 @@ public sealed class PackModule(IOptions<BuildSettings> settings) : Module<Comman
 			Path.GetFileName(zipPath)
 		);
 		context.Logger.LogInformation("Packed version {Version}.", version);
-
-		return null;
 	}
 }

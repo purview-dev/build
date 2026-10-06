@@ -52,7 +52,28 @@ on:
     branches: [release]
 ```
 
-The reusable release workflow checks whether `v{version}` (read from `package.json`) is already tagged and skips if so, so merging `main` into `release` releases exactly once.
+For the **per-line release-branch model** (Model C), where merging to `main` ships nothing and each
+`release/<line>` branch services its own line:
+
+```yaml
+on:
+  push:
+    branches: ['release/**']
+  workflow_dispatch:
+
+jobs:
+  release:
+    uses: purview-dev/build/.github/workflows/purview-release.yml@main
+    with:
+      release-mode: NuGet
+      eligibility-policy: TrunkReservesMinor
+    secrets: inherit
+```
+
+The reusable release workflow asks the tool to evaluate eligibility and reads the verdict: an
+already-released version skips (the job finishes green), and a policy violation fails the job naming
+the rule. Merging `main` into `release` therefore releases exactly once. See
+[Release Models](Release-Models.md).
 
 The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 

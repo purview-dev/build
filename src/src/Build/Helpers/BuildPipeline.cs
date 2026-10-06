@@ -1,4 +1,5 @@
 using ModularPipelines.Models;
+using Purview.Build.Configuration;
 
 namespace Purview.Build.Helpers;
 
@@ -15,23 +16,28 @@ static class BuildPipeline
 	/// <summary>
 	/// Runs the pipeline and returns the failed module results (empty when every module succeeded or skipped).
 	/// </summary>
-	public static async Task<IReadOnlyList<IModuleResult>> RunAsync(string[] args)
+	public static async Task<IReadOnlyList<IModuleResult>> RunAsync(
+		ToolCommandLine commandLine,
+		PipelineStartup startup
+	)
 	{
-		var pipelineDirectory = PipelineProjectDirectory.Find();
-		var repositoryRoot = PathHelpers.FindRepositoryRoot(Environment.CurrentDirectory);
+		ArgumentNullException.ThrowIfNull(commandLine);
+		ArgumentNullException.ThrowIfNull(startup);
 
+		var args = commandLine.PipelineArguments;
 		var builder = Pipeline.CreateBuilder(args);
 
-		AddConfiguration(builder, args, pipelineDirectory, repositoryRoot);
+		ConfigurationChain.Apply(builder.Configuration, startup, args);
 		ApplyLogLevel(builder);
 		BindSettings(builder);
+		ValidateInterlocks(builder);
 		AddGitHubClient(builder);
 		AddModules(builder);
 
 		builder.ConfigurePipelineOptions(options => options.ThrowOnPipelineFailure = false);
 
 		// Modules resolve every configured path relative to the repository root.
-		Environment.CurrentDirectory = repositoryRoot;
+		Environment.CurrentDirectory = startup.RepositoryRoot;
 
 		await using var pipeline = await builder.BuildAsync();
 
@@ -40,17 +46,14 @@ static class BuildPipeline
 		return summary.GetFailedModuleResults();
 	}
 
-	static void AddConfiguration(
-		PipelineBuilder builder,
-		string[] args,
-		string pipelineDirectory,
-		string repositoryRoot
-	) =>
+	/// <summary>
+	/// Rejects configurations that could cause real damage, before any module runs.
+	/// </summary>
+	static void ValidateInterlocks(PipelineBuilder builder) =>
 		builder
-			.Configuration.AddJsonFile(Path.Combine(pipelineDirectory, "appsettings.json"), optional: false)
-			.AddJsonFile(Path.Combine(repositoryRoot, "purview-build.json"), optional: true)
-			.AddEnvironmentVariables()
-			.AddCommandLine(args);
+			.Configuration.GetSection(ReleaseSettings.SectionName)
+			.Get<ReleaseSettings>()
+			?.ValidateSimulationInterlock();
 
 	/// <summary>
 	/// Applies <c>Build:LogLevel</c> to the pipeline logger, defaulting to <see cref="LogLevel.Information"/> so
@@ -81,6 +84,9 @@ static class BuildPipeline
 		builder.Services.Configure<ReleaseSettings>(
 			builder.Configuration.GetSection(ReleaseSettings.SectionName)
 		);
+		builder.Services.Configure<VersionSettings>(
+			builder.Configuration.GetSection(VersionSettings.SectionName)
+		);
 	}
 
 	static void AddGitHubClient(PipelineBuilder builder) =>
@@ -98,6 +104,7 @@ static class BuildPipeline
 		builder
 			.AddModule<CleanArtifactsModule>()
 			.AddModule<VersionModule>()
+			.AddModule<ReportEligibilityModule>()
 			.AddModule<RestoreModule>()
 			.AddModule<BuildModule>()
 			.AddModule<LintModule>()

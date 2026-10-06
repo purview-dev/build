@@ -112,7 +112,9 @@ output and progress).
 
 ## Configuration
 
-Add `purview-build.json` at the repository root. Everything is optional; defaults are baked into the tool. Configuration precedence is command line, environment variables, `purview-build.json`, then defaults. Nested environment keys use `__`, for example `Release__Mode=NuGet`.
+Add `purview-build.json`. Everything is optional; defaults are baked into the tool. Configuration precedence is command line, environment variables, `purview-build.json`, opt-in machine-local user config, then defaults. Nested environment keys use `__`, for example `Release__Mode=NuGet`.
+
+The file is found at the repository root, or at `.config/`, `.build/`, `build/`, `.purview/` or `.github/` beneath it — first match wins, and any lower-priority file that also exists is reported as shadowed rather than merged. Select one explicitly with `--config <path>` or `PURVIEW_BUILD_CONFIG`. Relative paths inside the file always anchor to the repository root, wherever the file itself lives. Run `purview-build --help` to print the probe order and the path that resolved. See the [configuration reference](docs/wiki/Configuration-Reference.md#where-the-configuration-file-lives).
 
 The pipeline is dotnet-first but supports **Web** projects (Bun/JS/TS, e.g. the Astro/Starlight `purview-dev` portal) by setting `Build:ProjectType=Web`: restore/build/lint/test then run the repository's root `package.json` scripts (`bun install`, `bun run build`, `bun run format:check`/`bun run lint`, `bun run test`), and the pack step zips `Build:WebBuildOutput` (default `src/dist`) into `Build:ArtifactsFolder` for the GitHub release. Every Web command is overridable via the `Web*` settings below.
 
@@ -139,7 +141,9 @@ The pipeline is dotnet-first but supports **Web** projects (Bun/JS/TS, e.g. the 
 }
 ```
 
-Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuGet__ApiKey`), `GITHUB_TOKEN`, and `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`).
+Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuGet__APIKey`), `GITHUB_TOKEN`, and `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`).
+
+Release eligibility is rule-based and selected per repository with `Release:Eligibility:Policy`: `ReleaseOnMain` (the default, reproducing the pipeline's long-standing behaviour), `TrunkReservesMinor` (per-line release branches), or `FourPartServicing`. Run `purview-build release-explain` to see the decision, the rule trail and the publication that would result, without running anything. See [release models](docs/wiki/Release-Models.md).
 
 See the [Documentation](#documentation) section below for the architecture, configuration reference, and release strategy.
 
@@ -147,15 +151,18 @@ See the [Documentation](#documentation) section below for the architecture, conf
 
 ```text
 CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → Validate → Publish → GitHub release
+                    └→ ReportEligibility
 ```
 
-`CleanArtifacts` deletes and recreates `Build:ArtifactsFolder` before anything else runs, so pack, validation, publishing, and release uploads only ever see the packages from the current run (set `Build:CleanArtifacts=false` to keep existing artifacts). `Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
+`Lint` and `ReportEligibility` are gates and reports, not inputs: nothing depends on either.
+
+`CleanArtifacts` deletes and recreates `Build:ArtifactsFolder` before anything else runs, so pack, validation, publishing, and release uploads only ever see the packages from the current run (set `Build:CleanArtifacts=false` to keep existing artifacts). `Version` resolves the release units from `Version:Source` (default: the `version` field of the root `package.json`); `Version:Strictness` defaults to `NuGet`, which accepts four-part versions. `ReportEligibility` evaluates the release rules and reports the verdict without acting on it. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) — a preset over the independent `Release:Publish` and `Release:GitHubRelease` switches — and by the `Build__Run*` switches. `Release:DryRun` runs everything and skips both publish steps. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
 
 ## Repository CI/CD
 
 This repository dogfoods the shared tool: CI builds and packs the tool from source, installs the generated package, then runs `purview-build` against this repository so the project builds and packs itself. Restore and warnings-as-errors compilation gate every pull request and merge.
 
-On a push to `main`, the release workflow rebuilds and reinstalls the tool from the current source, then runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` pointing at nuget.org, and `Release__UploadArtifacts=true`. The tool therefore publishes the immutable package to `https://api.nuget.org/v3/index.json` and tags and releases itself (`v{Version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
+On a push to `main`, the release workflow rebuilds and reinstalls the tool from the current source, asks it to evaluate release eligibility (`release-explain --format=json`), and — when the verdict is `Release` — runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` pointing at nuget.org, and `Release__UploadArtifacts=true`. The tool therefore publishes the immutable package to `https://api.nuget.org/v3/index.json` and tags and releases itself (`v{Version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
 
 GitHub initially creates NuGet packages as private. To make sure every package is **Internal** (consumable by all Purview-Dev members), an organization owner should set the org default: Purview-Dev → Settings → Packages → **Package Creation** → **Internal**, and change any already-published package's visibility in its **Package settings** → **Danger Zone**. See [docs/wiki/Release-Flow.md](docs/wiki/Release-Flow.md) for the exact steps and the `gh api` alternative.
 
@@ -166,3 +173,4 @@ GitHub initially creates NuGet packages as private. To make sure every package i
 - [Architecture](docs/wiki/Architecture.md)
 - [Configuration reference](docs/wiki/Configuration-Reference.md)
 - [Release flow](docs/wiki/Release-Flow.md)
+- [Release models](docs/wiki/Release-Models.md)

@@ -1,0 +1,258 @@
+{
+	"$comment": [
+		"The single source of truth for release-eligibility behaviour. Both the data-driven TUnit suite",
+		"(EligibilityScenarioTests) and the `just release-matrix` recipe, which runs each case through",
+		"the real CLI, read this file. Adding a rule or a policy means appending cases here, not",
+		"writing test code.",
+		"",
+		"Fields: version (as written in package.json), ref (the evaluated git ref), policy, strictness,",
+		"existingTags, publishedVersions (null means the feed was not consulted), and the expected",
+		"verdict / ruleId / exitCode. ruleId is the rule that decided the verdict, or null when every",
+		"rule passed."
+	],
+	"scenarios": [
+		{
+			"name": "model-a-untagged-stable-releases",
+			"why": "Today's Model A: every consuming repository releases a stable version from main.",
+			"version": "1.0.0",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-a-already-tagged-skips",
+			"why": "Replaces the workflow's `git rev-parse` gate. Already released is a skip, not a failure.",
+			"version": "1.0.0",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": ["v0.9.0", "v1.0.0"],
+			"publishedVersions": null,
+			"expected": { "verdict": "Skip", "ruleId": "REL002", "exitCode": 0 }
+		},
+		{
+			"name": "model-a-prerelease-from-main-releases",
+			"why": "sourcegenerator-framework, value-objects and zodsharp ship prereleases from main.",
+			"version": "1.0.0-prerelease.54",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-a-patch-from-main-releases",
+			"why": "REL004 is not enabled in ReleaseOnMain, so patches keep shipping from main.",
+			"version": "5.0.1",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-b-stable-from-release-branch-releases",
+			"why": "The documented main-as-head model releases from the `release` branch.",
+			"version": "2.0.0",
+			"ref": "refs/heads/release",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-a-stable-from-feature-branch-fails",
+			"why": "REL003: a stable version may only come from a declared release head.",
+			"version": "1.0.0",
+			"ref": "refs/heads/feature/add-thing",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL003", "exitCode": 1 }
+		},
+		{
+			"name": "model-c-stable-from-release-line-releases",
+			"why": "Model C: a serviced stable line releases 2.0.2 from release/2.0.",
+			"version": "2.0.2",
+			"ref": "refs/heads/release/2.0",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": ["v2.0.0", "v2.0.1"],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-c-prerelease-from-next-line-releases",
+			"why": "Model C: an in-flight prerelease line releases 2.1.0-prerelease.1 from release/2.1, with the 2.0 line untouched.",
+			"version": "2.1.0-prerelease.1",
+			"ref": "refs/heads/release/2.1",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": ["v2.0.0", "v2.0.1", "v2.0.2"],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "model-c-stable-from-main-fails",
+			"why": "Model C reserves trunk: merging to main must not ship anything.",
+			"version": "2.1.0",
+			"ref": "refs/heads/main",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL003", "exitCode": 1 }
+		},
+		{
+			"name": "model-c-patch-from-main-fails-rel004",
+			"why": "REL004: a non-zero PATCH is serviced from the line's release branch, never trunk. Reached only because the version is a prerelease, so REL003 does not short-circuit first.",
+			"version": "2.0.1-prerelease.1",
+			"ref": "refs/heads/main",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL004", "exitCode": 1 }
+		},
+		{
+			"name": "model-c-version-regression-fails-rel005",
+			"why": "REL005: the version must advance past the highest existing version on its own line.",
+			"version": "2.0.1",
+			"ref": "refs/heads/release/2.0",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": ["v2.0.0", "v2.0.2"],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL005", "exitCode": 1 }
+		},
+		{
+			"name": "model-c-other-line-does-not-block-rel005",
+			"why": "REL005 is scoped to the line, so a higher 2.1 version does not block a 2.0 patch.",
+			"version": "2.0.3",
+			"ref": "refs/heads/release/2.0",
+			"policy": "TrunkReservesMinor",
+			"strictness": "NuGet",
+			"existingTags": ["v2.0.2", "v2.1.0", "v2.1.1"],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "four-part-passes-under-nuget-strictness",
+			"why": "aspirec4 (13.5.3.10) and build-sdk (1.0.2.2) ship four-part versions today.",
+			"version": "13.5.3.10",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "four-part-fails-under-semver2-strictness",
+			"why": "REL001: SemVer2 strictness is the opt-in stricter setting that rejects four-part versions.",
+			"version": "13.5.3.10",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "SemVer2",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL001", "exitCode": 1 }
+		},
+		{
+			"name": "four-part-fails-rel006-without-allowfourpart",
+			"why": "REL006 enabled by a policy that does not permit four-part versions.",
+			"version": "2.0.1.1",
+			"ref": "refs/heads/release/2.0",
+			"policy": "FourPartRejecting",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL006", "exitCode": 1 }
+		},
+		{
+			"name": "four-part-passes-rel006-from-four-part-ref",
+			"why": "FourPartServicing permits four-part versions from a release branch.",
+			"version": "2.0.1.1",
+			"ref": "refs/heads/release/2.0",
+			"policy": "FourPartServicing",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Release", "ruleId": null, "exitCode": 0 }
+		},
+		{
+			"name": "four-part-fails-rel006-from-wrong-ref",
+			"why": "REL006 also constrains WHERE a four-part version may be released from.",
+			"version": "2.0.1.1",
+			"ref": "refs/heads/main",
+			"policy": "FourPartServicingAnyStable",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL006", "exitCode": 1 }
+		},
+		{
+			"name": "unparseable-version-fails-rel001",
+			"why": "The old VersionModule threw and the tool exited 1.",
+			"version": "not-a-version",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": null,
+			"expected": { "verdict": "Fail", "ruleId": "REL001", "exitCode": 1 }
+		},
+		{
+			"name": "already-published-version-skips",
+			"why": "REL002's feed half, when a simulated published-version list is supplied.",
+			"version": "3.0.0",
+			"ref": "refs/heads/main",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": [],
+			"publishedVersions": ["2.9.0", "3.0.0"],
+			"expected": { "verdict": "Skip", "ruleId": "REL002", "exitCode": 0 }
+		},
+		{
+			"name": "tag-skip-and-policy-fail-have-distinct-exit-codes",
+			"why": "A policy violation must not be mistakable for an already-released skip.",
+			"version": "4.0.0",
+			"ref": "refs/heads/feature/x",
+			"policy": "ReleaseOnMain",
+			"strictness": "NuGet",
+			"existingTags": ["v4.0.0"],
+			"publishedVersions": null,
+			"expected": {
+				"verdict": "Skip",
+				"ruleId": "REL002",
+				"exitCode": 0,
+				"whyThisOrder": "REL002 precedes REL003, so an already-released version skips before the ref is judged."
+			}
+		}
+	],
+	"$policiesComment": [
+		"Extra policies the scenarios above select, beyond the built-in ReleaseOnMain,",
+		"TrunkReservesMinor and FourPartServicing. Written into the generated purview-build.json",
+		"for the CLI matrix, and bound directly by the TUnit suite."
+	],
+	"policies": {
+		"FourPartRejecting": {
+			"Inherits": "TrunkReservesMinor",
+			"Rules": ["+REL006"],
+			"AllowFourPart": false
+		},
+		"FourPartServicingAnyStable": {
+			"Inherits": "FourPartServicing",
+			"StableRefs": ["refs/heads/main", "refs/heads/release/*"],
+			"ServicingRefs": ["refs/heads/main", "refs/heads/release/*"],
+			"FourPartRefs": ["refs/heads/release/*"]
+		}
+	}
+}
