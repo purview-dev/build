@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Purview.Build.Configuration;
+using Purview.Build.Helpers;
 
 namespace Purview.Build.Infra;
 
@@ -14,12 +15,10 @@ namespace Purview.Build.Infra;
 /// </remarks>
 sealed class ScenarioRepository : IDisposable
 {
-	const string BuildAgentVariable = "GITHUB_ACTIONS";
-
 	readonly ConfigScenario _scenario;
 	readonly string? _previousConfigVariable;
 	readonly string? _previousUserConfigVariable;
-	readonly string? _previousBuildAgentVariable;
+	readonly Dictionary<string, string?> _previousBuildAgentVariables;
 	readonly string? _previousXdgVariable;
 	readonly string _userConfigHome;
 
@@ -49,7 +48,10 @@ sealed class ScenarioRepository : IDisposable
 		_previousUserConfigVariable = Environment.GetEnvironmentVariable(
 			ConfigFileLocator.UserConfigEnvironmentVariableName
 		);
-		_previousBuildAgentVariable = Environment.GetEnvironmentVariable(BuildAgentVariable);
+		_previousBuildAgentVariables = ExecutionEnvironment.BuildAgentVariables.ToDictionary(
+			variable => variable,
+			Environment.GetEnvironmentVariable
+		);
 		_previousXdgVariable = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
 
 		ApplyEnvironment();
@@ -130,8 +132,11 @@ sealed class ScenarioRepository : IDisposable
 		// keep the two paths independent.
 		Environment.SetEnvironmentVariable(ConfigFileLocator.UserConfigEnvironmentVariableName, null);
 
-		// Locality decides whether user configuration applies at all.
-		Environment.SetEnvironmentVariable(BuildAgentVariable, _scenario.IsLocal ? null : "true");
+		// Locality decides whether user configuration applies at all. Every known build-agent
+		// variable must be neutralised, not just GITHUB_ACTIONS: a CI runner also sets CI, and
+		// leaving it set makes a "local" scenario look like a build agent.
+		foreach (var variable in ExecutionEnvironment.BuildAgentVariables)
+			Environment.SetEnvironmentVariable(variable, _scenario.IsLocal ? null : "true");
 
 		if (_scenario.UserConfigFile)
 		{
@@ -158,7 +163,8 @@ sealed class ScenarioRepository : IDisposable
 			ConfigFileLocator.UserConfigEnvironmentVariableName,
 			_previousUserConfigVariable
 		);
-		Environment.SetEnvironmentVariable(BuildAgentVariable, _previousBuildAgentVariable);
+		foreach (var (variable, value) in _previousBuildAgentVariables)
+			Environment.SetEnvironmentVariable(variable, value);
 		Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", _previousXdgVariable);
 
 		if (Directory.Exists(Root))
