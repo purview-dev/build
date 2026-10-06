@@ -2,7 +2,8 @@
 	"Build": {
 		"Solution": "src/Build.slnx",
 		"TestRoot": "src/tests",
-		"TestPatterns": "*Tests.csproj"
+		"TestPatterns": "*Tests.csproj",
+		"TestFilter": "/*/*/*/*[Category=Unit]"
 	},
 	"PackValidation": {
 		"RequireSymbolPackage": true,

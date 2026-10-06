@@ -21,4 +21,4 @@ This repository currently contains a vendored copy of `build/PipelineCLI`. Migra
 4. In the release caller set `release-mode: NuGet` and `secrets: inherit` (`NUGET_APIKEY` and `GITHUB_TOKEN` are read by the shared workflow).
 5. Run the PR pipeline, then delete `build/PipelineCLI` and its pipeline-only central package declarations (`ModularPipelines*`, `NuGet.Packaging/Versioning`).
 
-The old solution path and unit-test filter are preserved exactly. Other repositories migrate by changing only the JSON paths/patterns; for example `dotnet-project-sdk` can list unit and integration project globs in `Build:TestPatterns`.
+The old solution path and unit-test filter are preserved exactly. Other repositories migrate by changing only the JSON paths/patterns; for example `build-sdk` can list unit and integration project globs in `Build:TestPatterns`.

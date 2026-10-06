@@ -31,35 +31,22 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Read and validate release version
+      # Irreducible: the tool cannot read its own version for `dotnet pack` before it has been
+      # packed. Eligibility is NOT decided here — that is the tool's job, below.
+      - name: Read release version
         id: version
         shell: bash
         run: |
           VERSION=$(bun -p "require('./package.json').version")
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "package.json version '$VERSION' is not SemVer." >&2
-            exit 1
-          fi
-          TAG="v$VERSION"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Version $VERSION is already released as $TAG."
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "release=true" >> "$GITHUB_OUTPUT"
-          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Restore
-        if: steps.version.outputs.release == 'true'
         run: dotnet restore src/Build.slnx
 
       - name: Build gate
-        if: steps.version.outputs.release == 'true'
         run: dotnet build src/Build.slnx --configuration Release --no-restore --warnaserror
 
       - name: Pack tool from source
-        if: steps.version.outputs.release == 'true'
         run: >-
           dotnet pack src/Build.slnx
           --configuration Release --no-build --output artifacts
@@ -68,7 +55,6 @@ jobs:
           -p:PackageVersion=${{ steps.version.outputs.version }}
 
       - name: Verify NuGet API key
-        if: steps.version.outputs.release == 'true'
         env:
           NUGET_APIKEY: ${{ secrets.NUGET__APIKEY }}
         run: |
@@ -78,19 +64,43 @@ jobs:
           fi
 
       - name: Install packed tool
-        if: steps.version.outputs.release == 'true'
         run: >-
           dotnet tool install Purview.Build
           --tool-path "$RUNNER_TEMP/purview-build"
           --add-source artifacts
           --version "${{ steps.version.outputs.version }}"
 
+      - name: Evaluate release eligibility
+        id: eligibility
+        env:
+          Release__Mode: NuGet
+        run: |
+          "$RUNNER_TEMP/purview-build/purview-build" release-explain --format=json > explain.json
+          cat explain.json
+
+          {
+            echo "verdict=$(jq -r '.verdict' explain.json)"
+            echo "release_mode=$(jq -r '.releaseMode' explain.json)"
+          } >> "$GITHUB_OUTPUT"
+
+          jq -r '.message' explain.json > eligibility-message.txt
+
+      - name: Report ineligible release
+        if: steps.eligibility.outputs.verdict == 'Fail'
+        run: |
+          echo "::error title=Release not eligible::$(cat eligibility-message.txt)"
+          exit 1
+
+      - name: Skip release
+        if: steps.eligibility.outputs.verdict == 'Skip'
+        run: echo "::notice title=Release skipped::$(cat eligibility-message.txt)"
+
       - name: Run release pipeline (builds, publishes and tags itself)
-        if: steps.version.outputs.release == 'true'
+        if: steps.eligibility.outputs.verdict == 'Release'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NUGET_APIKEY: ${{ secrets.NUGET__APIKEY }}
-          Release__Mode: NuGet
+          Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
           Release__UploadArtifacts: "true"
           NuGet__FeedUrl: https://api.nuget.org/v3/index.json
           Build__RunTests: "false"

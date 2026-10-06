@@ -1,0 +1,295 @@
+{
+	"$comment": [
+		"The single source of truth for configuration-file discovery. Both the data-driven TUnit suite",
+		"(ConfigResolutionScenarioTests) and the `just config-matrix` recipe, which runs each case",
+		"through the real CLI, read this file.",
+		"",
+		"Fields: files (created relative to a throwaway repository root, each containing a marker",
+		"setting), config (--config value), env (PURVIEW_BUILD_CONFIG value), userConfig (--user-config),",
+		"isLocal (whether the run is treated as local). Expected: resolvedPath (relative to the",
+		"repository root, or null), shadowWarnings (relative paths), exitCode, and optionally",
+		"userConfigActive and errorContains."
+	],
+	"scenarios": [
+		{
+			"name": "no-config-is-valid-and-silent",
+			"why": "Every key is optional; absence must not warn.",
+			"files": [],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "probe-1-repository-root",
+			"why": "Probe position 1 — the original location, so no existing repository moves.",
+			"files": ["purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": { "resolvedPath": "purview-build.json", "shadowWarnings": [], "exitCode": 0 }
+		},
+		{
+			"name": "probe-2-dot-config",
+			"files": [".config/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": ".config/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "probe-3-dot-build",
+			"files": [".build/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": ".build/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "probe-4-build",
+			"files": ["build/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "build/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "probe-5-dot-purview",
+			"files": [".purview/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": ".purview/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "probe-6-dot-github",
+			"files": [".github/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": ".github/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "first-match-wins-and-shadows-are-warned",
+			"why": "Silent first-match-wins is how someone spends an afternoon editing a file the tool never reads.",
+			"files": [
+				".config/purview-build.json",
+				"purview-build.json",
+				".github/purview-build.json"
+			],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "purview-build.json",
+				"shadowWarnings": [".config/purview-build.json", ".github/purview-build.json"],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "lower-priority-pair-shadows-correctly",
+			"why": "The winner is the first in probe order, not the first created.",
+			"files": ["build/purview-build.json", ".build/purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": ".build/purview-build.json",
+				"shadowWarnings": ["build/purview-build.json"],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "explicit-config-skips-probing",
+			"why": "An explicit location must not be shadow-warned against files it deliberately bypasses.",
+			"files": ["purview-build.json", "custom/elsewhere.json"],
+			"config": "custom/elsewhere.json",
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "custom/elsewhere.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "environment-variable-selects-config",
+			"files": ["purview-build.json", "custom/from-env.json"],
+			"config": null,
+			"env": "custom/from-env.json",
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "custom/from-env.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "command-line-beats-environment-variable",
+			"files": ["custom/from-cli.json", "custom/from-env.json"],
+			"config": "custom/from-cli.json",
+			"env": "custom/from-env.json",
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "custom/from-cli.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "explicit-missing-path-fails",
+			"why": "Never a silent fallback to probing or to defaults.",
+			"files": ["purview-build.json"],
+			"config": "custom/missing.json",
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 1,
+				"errorContains": "does not exist"
+			}
+		},
+		{
+			"name": "explicit-missing-env-path-fails",
+			"files": ["purview-build.json"],
+			"config": null,
+			"env": "custom/missing.json",
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 1,
+				"errorContains": "PURVIEW_BUILD_CONFIG"
+			}
+		},
+		{
+			"name": "explicit-directory-resolves-to-file-within",
+			"files": ["custom/purview-build.json"],
+			"config": "custom",
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": "custom/purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0
+			}
+		},
+		{
+			"name": "malformed-json-fails-naming-the-file",
+			"why": "A bare deserialisation exception is useless when six probe locations are possible.",
+			"files": ["purview-build.json"],
+			"malformed": "purview-build.json",
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 1,
+				"errorContains": "is not valid JSON"
+			}
+		},
+		{
+			"name": "near-miss-filename-is-warned-not-loaded",
+			"why": "An obvious typo must not read as 'no configuration'.",
+			"files": ["purview-buidl.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 0,
+				"nearMissContains": "purview-buidl.json"
+			}
+		},
+		{
+			"name": "user-config-ignored-when-not-opted-in",
+			"files": ["purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"userConfigFile": true,
+			"expected": {
+				"resolvedPath": "purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0,
+				"userConfigActive": false
+			}
+		},
+		{
+			"name": "user-config-active-when-opted-in-and-local",
+			"files": ["purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": true,
+			"isLocal": true,
+			"userConfigFile": true,
+			"expected": {
+				"resolvedPath": "purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0,
+				"userConfigActive": true
+			}
+		},
+		{
+			"name": "user-config-ignored-on-a-build-agent-even-when-opted-in",
+			"why": "It must be impossible to influence a CI build with a machine-local file.",
+			"files": ["purview-build.json"],
+			"config": null,
+			"env": null,
+			"userConfig": true,
+			"isLocal": false,
+			"userConfigFile": true,
+			"expected": {
+				"resolvedPath": "purview-build.json",
+				"shadowWarnings": [],
+				"exitCode": 0,
+				"userConfigActive": false
+			}
+		}
+	]
+}

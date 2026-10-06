@@ -20,6 +20,7 @@ The same implementation is available three ways:
 - [Pipeline Modules](Pipeline-Modules.md)
 - [Pack Validation](Pack-Validation.md)
 - [Release Flow](Release-Flow.md)
+- [Release Models](Release-Models.md)
 - [Local Development](Local-Development.md)
 - [Secrets and Environment Variables](Secrets-and-Environment-Variables.md)
 - [Repository CI/CD](Repository-CI-CD.md)
@@ -28,13 +29,15 @@ The same implementation is available three ways:
 ## Pipeline
 
 ```text
-Version ───────────────┐
-Restore → Build → Test ├→ Pack → Validate → Publish → GitHub release
-           └→ Lint     │
-Version ───────────────┘
+CleanArtifacts ─┬→ Version ─┬──────────────────────────────┬→ Pack → Validate → Publish → GitHub release
+                │           └→ ReportEligibility           │
+                └→ Restore ─┬→ Build → Test ───────────────┘
+                            └→ Lint
 ```
 
-`Version` reads the SemVer `version` field from `package.json`. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) and independently by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI.
+`Version` resolves the release units from `Version:Source` (default: the `version` field of the root `package.json`). `ReportEligibility` evaluates the `Release:Eligibility` rules and reports the verdict without acting on it. Lint restores local tools and runs CSharpier. Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) — a preset over the independent `Release:Publish` and `Release:GitHubRelease` switches — and by the `Build__Run*` switches. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI.
+
+`Lint` and `ReportEligibility` are gates and reports: nothing depends on either.
 
 ## Requirements
 
@@ -51,3 +54,7 @@ Version ───────────────┘
 | `.github/workflows` | The reusable `purview-build.yml`/`purview-release.yml` and this repository's own `ci.yml`/`release.yml` |
 | `docs/wiki` | This wiki |
 | `purview-build.json` | This repository's own pipeline configuration (the tool dogfoods itself) |
+| `src/tests/Build.UnitTests` | Unit suites. The project name gives every test `[Category("Unit")]` automatically (the Purview SDK derives it from the `*.<Type>Tests` suffix) |
+| `src/tests/Build.IntegrationTests` | Integration suites, likewise `[Category("Integration")]`. CI runs the unit filter only |
+| `src/tests/fixtures` | The declarative scenario matrices and the `release-explain` golden file |
+| `src/tests/scenarios` | The shell runners behind `just release-matrix` / `just config-matrix` |

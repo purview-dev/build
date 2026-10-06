@@ -26,6 +26,26 @@ on:
         required: false
         default: main
         type: string
+      config-path:
+        description: >-
+          Explicit purview-build.json location (PURVIEW_BUILD_CONFIG). When omitted, the tool uses
+          its documented probe order starting at the repository root.
+        required: false
+        type: string
+      eligibility-policy:
+        description: >-
+          Release eligibility policy to evaluate (Release__Eligibility__Policy), e.g.
+          TrunkReservesMinor. When omitted, the repository's own configuration decides.
+        required: false
+        type: string
+      release-channel:
+        description: Named release channel (Release__Channel), e.g. stable or preview.
+        required: false
+        type: string
+      version-source:
+        description: Where the version comes from (Version__Source). Currently PackageJson.
+        required: false
+        type: string
       trusted-publishing:
         description: Use NuGet Trusted Publishing (no API key) instead of an API key.
         required: false
@@ -63,6 +83,11 @@ on:
     secrets:
       NUGET_APIKEY:
         required: false
+      # Declared because consuming repositories historically store the key under this name and the
+      # job forwards it as NUGET_API_KEY. A secret referenced but not declared here resolves only
+      # under `secrets: inherit`; declaring it makes the contract explicit either way.
+      NUGET__APIKEY:
+        required: false
 
 permissions:
   contents: write
@@ -73,9 +98,24 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      # Consumer repos historically store the key under NUGET__APIKEY; some use NUGET_APIKEY.
+      # The tool reads the plain process env vars NUGET_APIKEY / NUGET_API_KEY.
+      NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
+      NUGET_API_KEY: ${{ secrets.NUGET__APIKEY }}
+      Release__Mode: ${{ inputs.release-mode }}
+      Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
+      NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
+      Build__RunTests: ${{ inputs.run-tests }}
+      Build__RunLint: ${{ inputs.run-lint }}
+      Build__RunPack: ${{ inputs.run-pack }}
+      Build__ValidatePack: ${{ inputs.validate-pack }}
     steps:
       - uses: actions/checkout@v7
         with:
+          # Eligibility is judged against the tags that already exist, so the full tag list
+          # has to be present before the tool evaluates anything.
           fetch-depth: 0
           fetch-tags: true
 
@@ -85,24 +125,29 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Check for version bump
-        id: version
+      - name: Forward optional inputs
         shell: bash
         run: |
-          VERSION=$(bun -p "require('./package.json').version")
-          TAG="v$VERSION"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Version $VERSION is already tagged as $TAG. Skipping release."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "New version $VERSION detected. Releasing $TAG."
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # Only forward optional settings the caller actually provided. Setting any of these to
+          # the empty string would override the consuming repo's purview-build.json, because
+          # environment variables take precedence over the JSON config (see commit 4d72bf7).
+          if [ -n "${{ inputs.config-path }}" ]; then
+            echo "PURVIEW_BUILD_CONFIG=${{ inputs.config-path }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ inputs.eligibility-policy }}" ]; then
+            echo "Release__Eligibility__Policy=${{ inputs.eligibility-policy }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ inputs.release-channel }}" ]; then
+            echo "Release__Channel=${{ inputs.release-channel }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ inputs.version-source }}" ]; then
+            echo "Version__Source=${{ inputs.version-source }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            echo "Build__TestFilter=${{ inputs.test-filter }}" >> "$GITHUB_ENV"
           fi
 
       - name: Install shared build
-        if: steps.version.outputs.should_release == 'true'
         shell: bash
         run: |
           VERSION_ARGS=""
@@ -111,26 +156,42 @@ jobs:
           fi
           dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
-      - name: Run release pipeline
-        if: steps.version.outputs.should_release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # Consumer repos historically store the key under NUGET__APIKEY; some use NUGET_APIKEY.
-          # The tool reads the plain process env vars NUGET_APIKEY / NUGET_API_KEY.
-          NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
-          NUGET_API_KEY: ${{ secrets.NUGET__APIKEY }}
-          Release__Mode: ${{ inputs.release-mode }}
-          Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
-          NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
-          Build__RunTests: ${{ inputs.run-tests }}
-          Build__RunLint: ${{ inputs.run-lint }}
-          Build__RunPack: ${{ inputs.run-pack }}
-          Build__ValidatePack: ${{ inputs.validate-pack }}
+      - name: Evaluate release eligibility
+        id: eligibility
+        shell: bash
         run: |
-          # Only forward the optional test filter when the caller provides it.
-          # Setting it to empty would override a consuming repo's purview-build.json
-          # (env vars take precedence over the JSON config) and silently disable the filter.
-          if [ -n "${{ inputs.test-filter }}" ]; then
-            export Build__TestFilter="${{ inputs.test-filter }}"
-          fi
+          # The tool evaluates; this workflow decides. release-explain runs no module, mutates
+          # nothing, and always exits 0 — the decision is in its JSON.
+          "${{ runner.temp }}/purview-build/purview-build" release-explain --format=json > explain.json
+          cat explain.json
+
+          {
+            echo "verdict=$(jq -r '.verdict' explain.json)"
+            echo "release_mode=$(jq -r '.releaseMode' explain.json)"
+            echo "decided_by=$(jq -r '.decidedByRule // ""' explain.json)"
+          } >> "$GITHUB_OUTPUT"
+
+          jq -r '.message' explain.json > eligibility-message.txt
+
+      - name: Report ineligible release
+        if: steps.eligibility.outputs.verdict == 'Fail'
+        shell: bash
+        run: |
+          echo "::error title=Release not eligible::$(cat eligibility-message.txt)"
+          exit 1
+
+      - name: Skip release
+        if: steps.eligibility.outputs.verdict == 'Skip'
+        shell: bash
+        run: |
+          echo "::notice title=Release skipped::$(cat eligibility-message.txt)"
+
+      - name: Run release pipeline
+        if: steps.eligibility.outputs.verdict == 'Release'
+        shell: bash
+        env:
+          # The evaluated decision, not the raw input: a verdict that is not "Release" resolves to
+          # None, so the publish and release modules skip even if this step were reached.
+          Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
+        run: |
           "${{ runner.temp }}/purview-build/purview-build"

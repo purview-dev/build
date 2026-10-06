@@ -1,0 +1,127 @@
+{
+  "verdict": "Release",
+  "exitCode": 0,
+  "releaseMode": "NuGet",
+  "message": "Every rule passed (REL001, REL002, REL003, REL004, REL005). The release is eligible.",
+  "decidedByRule": null,
+  "shortCircuitedAt": null,
+  "simulated": true,
+  "ref": "refs/heads/release/2.0",
+  "refSource": "Release:Context:Ref (simulated)",
+  "configuration": {
+    "resolvedPath": "<root>",
+    "source": "Probe",
+    "probeTrail": [
+      {
+        "relativePath": "purview-build.json",
+        "fullPath": "<root>",
+        "exists": true
+      },
+      {
+        "relativePath": ".config/purview-build.json",
+        "fullPath": "<root>",
+        "exists": false
+      },
+      {
+        "relativePath": ".build/purview-build.json",
+        "fullPath": "<root>",
+        "exists": false
+      },
+      {
+        "relativePath": "build/purview-build.json",
+        "fullPath": "<root>",
+        "exists": false
+      },
+      {
+        "relativePath": ".purview/purview-build.json",
+        "fullPath": "<root>",
+        "exists": false
+      },
+      {
+        "relativePath": ".github/purview-build.json",
+        "fullPath": "<root>",
+        "exists": false
+      }
+    ],
+    "shadowedPaths": [],
+    "userConfigPath": null,
+    "userConfigActive": false
+  },
+  "version": {
+    "raw": "2.0.2",
+    "source": "PackageJson",
+    "strictness": "NuGet",
+    "units": [
+      {
+        "id": "2.0.2",
+        "version": "2.0.2",
+        "isPrerelease": false,
+        "prereleaseLabel": null,
+        "line": "2.0",
+        "channel": "stable",
+        "tag": "v2.0.2",
+        "source": "PackageJson"
+      }
+    ]
+  },
+  "policy": {
+    "name": "TrunkReservesMinor",
+    "inheritanceChain": [
+      "TrunkReservesMinor"
+    ],
+    "resolvedRules": [
+      "REL001",
+      "REL002",
+      "REL003",
+      "REL004",
+      "REL005"
+    ],
+    "stableRefs": [
+      "refs/heads/release/*"
+    ],
+    "servicingRefs": [
+      "refs/heads/release/*"
+    ],
+    "trunkRefs": [
+      "refs/heads/main"
+    ],
+    "fourPartRefs": [],
+    "allowFourPart": false
+  },
+  "rules": [
+    {
+      "id": "REL001",
+      "verdict": "pass",
+      "message": "REL001: Version '2.0.2' is valid for NuGet strictness."
+    },
+    {
+      "id": "REL002",
+      "verdict": "pass",
+      "message": "REL002: v2.0.2 does not exist. The feed was not consulted, so only the tag was checked."
+    },
+    {
+      "id": "REL003",
+      "verdict": "pass",
+      "message": "REL003: Stable version 2.0.2 is released from 'refs/heads/release/2.0'."
+    },
+    {
+      "id": "REL004",
+      "verdict": "pass",
+      "message": "REL004: Servicing version 2.0.2 is released from 'refs/heads/release/2.0'."
+    },
+    {
+      "id": "REL005",
+      "verdict": "pass",
+      "message": "REL005: Version 2.0.2 is greater than 2.0.1 on line 2.0."
+    }
+  ],
+  "publication": {
+    "mode": "NuGet",
+    "publish": true,
+    "githubRelease": true,
+    "channel": "stable",
+    "feedUrl": "https://api.nuget.org/v3/index.json",
+    "dryRun": false
+  },
+  "warnings": []
+}

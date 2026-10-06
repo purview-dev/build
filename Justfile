@@ -16,6 +16,13 @@ default_test_filter := "/*/*/*/*/"
 pipeline_feed := "https://api.nuget.org/v3/index.json"
 pipeline_tool := ".tools/purview-build/purview-build"
 
+# The locally built binary the release/config scenario matrices run, so a sweep does not pay
+# `dotnet run` startup per case and needs no network.
+local_tool := "src/src/Build/bin/Release/net10.0/Purview.Build"
+golden_test_project := tests_root / "Build.UnitTests" / "Build.UnitTests.csproj"
+dogfood_artifacts := "./artifacts/dogfood"
+dogfood_tool_path := "./.tools/dogfood"
+
 current_version := `bun -p "require('./package.json').version"`
 
 [private]
@@ -75,6 +82,57 @@ pipeline-pack-validate *args:
     echo "Running pack + validate pipeline..."
     "{{ pipeline_tool }}" --Build:RunPack=true --Build:ValidatePack=true --Release:Mode=None {{ args }}
 
+# Pack this repository's tool from source, install it to a temp tool path, and run it against this repository
+[group('Pipeline')]
+pipeline-dogfood *args:
+    echo "Packing {{ BLUE }}{{ project }}{{ NORMAL }} from source..."
+    rm -rf "{{ dogfood_artifacts }}" "{{ dogfood_tool_path }}"
+    dotnet pack {{ project }} -c Release -o "{{ dogfood_artifacts }}" \
+        -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
+    dotnet tool install Purview.Build --tool-path "{{ dogfood_tool_path }}" \
+        --add-source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
+    echo "Running the freshly packed tool against this repository..."
+    "{{ dogfood_tool_path }}/purview-build" {{ args }}
+
+# Explain the release decision for the working tree, without running any module or mutating anything
+[group('Release')]
+release-explain *args:
+    just scenario-build
+    "{{ local_tool }}" release-explain {{ args }}
+
+# Explain the release decision for a simulated ref and version; mutates nothing and makes no network calls
+# Example: just release-simulate refs/heads/release/2.0 2.0.2 --Release:Eligibility:Policy=TrunkReservesMinor
+[group('Release')]
+release-simulate ref version *args:
+    just scenario-build
+    sh src/tests/scenarios/simulate.sh "{{ ref }}" "{{ version }}" {{ args }}
+
+# Run every eligibility scenario through the real CLI; non-zero on any mismatch
+[group('Release')]
+release-matrix:
+    just scenario-build
+    sh src/tests/scenarios/run-eligibility-matrix.sh
+
+# Run every config-resolution scenario through the real CLI; non-zero on any mismatch
+[group('Release')]
+config-matrix:
+    just scenario-build
+    sh src/tests/scenarios/run-config-matrix.sh
+
+# Regenerate the release-explain JSON golden file, then show what changed
+[group('Release')]
+release-explain-golden:
+    PURVIEW_BUILD_UPDATE_GOLDEN=1 dotnet test {{ golden_test_project }} -c Release \
+        --treenode-filter "/*/*/ReleaseExplainGoldenTests/*"
+    git --no-pager diff -- src/tests/fixtures/release-explain.golden.json
+
+# Build the tool in Release so the scenario matrices can run the real binary
+[private]
+scenario-build:
+    if [ ! -x "{{ local_tool }}" ] && [ ! -x "{{ local_tool }}.exe" ]; then \
+        dotnet build {{ project }} -c Release; \
+    fi
+
 # Build the project with the specified configuration, defaulting to "Debug"
 [group('Build and Test')]
 build *args:
@@ -94,6 +152,13 @@ test filter=default_test_filter *args:
 [group('Build and Test')]
 test-unit *args:
     just test "/*/*/*/*[Category=Unit]" {{ args }}
+
+# Run the eligibility and config-resolution suites only
+[group('Build and Test')]
+test-eligibility *args:
+    echo "Running eligibility and config-resolution suites..."
+    dotnet test {{ golden_test_project }} -c {{ build_configuration }} \
+        --treenode-filter "/*/*/EligibilityScenarioTests|EligibilityPolicyResolutionTests|ConfigResolutionScenarioTests|ReleaseOnMainCharacterisationTests|ReleaseExplainGoldenTests|WorkflowParityTests|ReleaseUnitTests|ReleasePublicationTests/*" {{ args }}
 
 # Clean the project with the specified configuration, defaulting to "Debug"
 [group('Build and Test')]
@@ -130,10 +195,24 @@ version:
 vs:
     open {{ project }}
 
-# Check code formatting using CSharpier
+# Check code formatting using CSharpier, and lint the workflow files
 [group('Utilities')]
 lint-check:
     dotnet csharpier check .
+    just lint-yaml
+
+# Lint the GitHub Actions workflow files with actionlint, when it is installed
+# (action.yml is a composite action, not a workflow, so actionlint cannot parse it)
+# Install it with 'scoop install actionlint', 'brew install actionlint', or
+# 'go install github.com/rhysd/actionlint/cmd/actionlint@latest'.
+[group('Utilities')]
+lint-yaml:
+    if command -v actionlint >/dev/null 2>&1; then \
+        echo "Running actionlint..."; \
+        actionlint .github/workflows/*.yml; \
+    else \
+        echo "actionlint is not installed; skipping workflow linting (see the recipe comment)."; \
+    fi
 
 # Fix code formatting issues using CSharpier
 [group('Utilities')]

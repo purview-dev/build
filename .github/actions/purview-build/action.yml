@@ -16,6 +16,11 @@ inputs:
     description: .NET SDK used by the consuming repository.
     required: false
     default: 10.0.x
+  config-path:
+    description: >-
+      Explicit purview-build.json location (PURVIEW_BUILD_CONFIG). When omitted, the tool uses its
+      documented probe order starting at the repository root.
+    required: false
 
 runs:
   using: composite
@@ -38,6 +43,12 @@ runs:
 
     - name: Run shared build
       shell: bash
-      run: "${{ runner.temp }}/purview-build/purview-build"
+      run: |
+        # Only forward config-path when the caller provided it: an empty PURVIEW_BUILD_CONFIG
+        # would be an explicit-but-missing path, which the tool treats as an error.
+        if [ -n "${{ inputs.config-path }}" ]; then
+          export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
+        fi
+        "${{ runner.temp }}/purview-build/purview-build"
       env:
         GITHUB_TOKEN: ${{ github.token }}

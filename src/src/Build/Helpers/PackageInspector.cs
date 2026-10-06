@@ -164,7 +164,7 @@ static class PackageInspector
 
 		var nupkgFiles = (await nupkgReader.GetFilesAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 		var snupkgFiles = snupkgReader is null
-			? new(StringComparer.OrdinalIgnoreCase)
+			? [with(StringComparer.OrdinalIgnoreCase)]
 			: (await snupkgReader.GetFilesAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var entry in nupkgFiles)

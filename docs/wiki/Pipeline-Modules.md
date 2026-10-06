@@ -6,7 +6,11 @@ Each module logs a line when it starts (`Running BuildModule...`) before its com
 
 ```text
 CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish → GitHub release
+                   └→ ReportEligibility
 ```
+
+`Lint` and `ReportEligibility` are gates and reports, not inputs: nothing depends on either, so
+neither feeds `Pack`.
 
 ## CleanArtifactsModule
 
@@ -16,7 +20,23 @@ Deletes `Build:ArtifactsFolder` (when it exists) and recreates it empty, before 
 
 ## VersionModule
 
-Reads the SemVer `version` field from the repository root `package.json` and produces a `NuGetVersion`. Fails when the file is missing, the field is missing/empty, or the value is not valid SemVer. The version feeds `PackModule` (via `Version`/`PackageVersion`) and `CreateGitHubReleaseModule` (via the `v{version}` tag).
+Resolves the release units **once**, through the provider selected by `Version:Source` (`PackageJson` is the default and the only implemented source), and exposes them as an immutable module result. Every downstream module reads that result; none recomputes a version.
+
+The result is an ordered **set** of release units, not a scalar, even though every current source yields exactly one. Each unit carries its id, version, prerelease flag and label, line (`MAJOR.MINOR`), channel, tag (`v{version}`) and source. Modelling it as a set means adding a second unit requires no change in `PackModule` or `CreateGitHubReleaseModule`, both of which enumerate the set.
+
+`PackageJson` reads the `version` field from the repository root `package.json` and validates it against `Version:Strictness`. The default, `NuGet`, accepts everything `NuGetVersion` does — including four-part versions such as `13.5.3.10`, which two consuming repositories ship. `SemVer2` is the stricter opt-in. Fails when the file is missing, the field is missing/empty, or the value does not satisfy the configured strictness.
+
+The tag preserves the version exactly as written in `package.json`, rather than its normalised form: a normalised tag would drop a trailing `.0` revision and desynchronise the tag from the declared version.
+
+## ReportEligibilityModule
+
+Category `Build`. Depends on `VersionModule`. No skip condition.
+
+Evaluates the `Release:Eligibility` rules and **reports** the verdict — the policy name, every rule's outcome and message in evaluation order, and the short-circuit point — to the log and the run summary. It never acts on the verdict.
+
+Deliberately not category `Release`: it observes, and it must never decline a release. The workflow owns the decision (it runs `release-explain`, reads the verdict and sets `Release__Mode`); this module exists so a real pipeline run still records *why* a release was or was not eligible, which a workflow-only gate never surfaced in the tool's own log.
+
+Every failure path inside it is a warning. A misconfigured policy or an unreadable simulated tag list must not fail a build that would otherwise succeed. When `Release:Context:*` supplied a simulated context, the report says so.
 
 ## RestoreModule
 
@@ -53,8 +73,10 @@ Depends on `RunTestsModule` and `VersionModule`. Skip condition: skipped when `B
 
 `CleanArtifactsModule` resets `Build:ArtifactsFolder` before the run produces anything, so the folder only contains packages from the current run.
 
-- **DotNet**: creates `Build:ArtifactsFolder` and runs `dotnet pack` against `Build:Solution` with `Build:Configuration`, `--output <ArtifactsFolder>`, and `-p:PackageVersion=<version> -p:Version=<version>` where the version comes from `VersionModule`.
-- **Web**: creates `Build:ArtifactsFolder` and zips `Build:WebBuildOutput` (default `src/dist`) into `<package-name>-<version>.zip` (name from the root `package.json` `name` field, version from `VersionModule`). Logs a warning and produces no artifact when the build output directory does not exist.
+Packs once per release unit, so a multi-unit version source needs no change here.
+
+- **DotNet**: creates `Build:ArtifactsFolder` and runs `dotnet pack` against `Build:Solution` with `Build:Configuration`, `--output <ArtifactsFolder>`, and `-p:PackageVersion=<version> -p:Version=<version>` where the version comes from the release unit resolved by `VersionModule`.
+- **Web**: creates `Build:ArtifactsFolder` and zips `Build:WebBuildOutput` (default `src/dist`) into `<package-name>-<version>.zip` (name from the root `package.json` `name` field, version from the release unit). Logs a warning and produces no artifact when the build output directory does not exist.
 
 ## ValidatePackModule
 
@@ -64,13 +86,15 @@ Inspects every `.nupkg`/`.snupkg` in `Build:ArtifactsFolder`. Because `CleanArti
 
 ## PublishNuGetModule
 
-Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** `Release:Mode` is not `NuGet` **or** (`NuGet:TrustedPublishing` is false and no API key resolves via `NuGet:GetNuGetAPIKey()`).
+Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the resolved `Release:Publish` is false **or** (`NuGet:TrustedPublishing` is false and no API key resolves via `NuGet:GetNuGetAPIKey()`).
 
-Pushes every `*.nupkg` in `Build:ArtifactsFolder` to `NuGet:FeedUrl` with `--skip-duplicate`. When `NuGet:TrustedPublishing` is true, pushes without an API key (NuGet Trusted Publishing / OIDC federation).
+`Release:Publish` is derived from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it publishes when `Release:Mode=NuGet`.
+
+Pushes every `*.nupkg` in `Build:ArtifactsFolder` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel` declares one and `NuGet:FeedUrl` otherwise. When `NuGet:TrustedPublishing` is true, pushes without an API key (NuGet Trusted Publishing / OIDC federation). When `Release:DryRun` is true, logs the push it would have made and performs none.
 
 ## PublishLocalNuGetModule
 
-Depends on `PackModule` and `ValidatePackModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the tool is not running **locally** (`ctx.IsRunningLocally()`) **or** `Release:Mode` is not `LocalNuGet`. This mode is intentionally ignored in CI.
+Category `Build` — it never reaches a remote feed. Depends on `PackModule` and `ValidatePackModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the tool is not running **locally** (`ctx.IsRunningLocally()`) **or** `Release:Mode` is not `LocalNuGet`. This mode is intentionally ignored in CI.
 
 Validates `PublishLocalNuGet:LocalFeedPath` (resolved via `GetLocalFeedPath()`, falling back to `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH` and then process env `LOCAL_NUGET_FEED_PATH`). The path must be absolute; drive-relative paths such as `p:foo` (backslashes stripped by a sh-style shell) are rejected with a remediation message. See [Local Development](Local-Development.md).
 
@@ -78,9 +102,13 @@ Moves the `.nupkg`/`.snupkg` files from `Build:ArtifactsFolder` into the local f
 
 ## CreateGitHubReleaseModule
 
-Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless `Release:Mode` is `NuGet` or `GitHubRelease` **and** a GitHub token resolves via `GitHub:GetGitHubToken()`.
+Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless the resolved `Release:GitHubRelease` is true **and** a GitHub token resolves via `GitHub:GetGitHubToken()`.
 
-Creates a GitHub release with tag `v{version}` and `GenerateReleaseNotes = true`. Releases whose version is a prerelease (for example `2.0.0-prerelease.25`) are created as GitHub prereleases unless `Release:MarkPrerelease` is false, so prerelease builds are not presented as the latest stable release. This changes GitHub release metadata only: prerelease versions are still published to the NuGet feed — `PublishNuGetModule` is unaffected. When `Release:UploadArtifacts` is true, uploads every file in `Build:ArtifactsFolder` as a release asset — for Web projects this is the `<package-name>-<version>.zip` produced by `PackModule`. The tag must not already exist; callers gate release eligibility (the tool does not skip an existing tag itself).
+`Release:GitHubRelease` is derived from the channel and then from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it releases when `Release:Mode` is `NuGet` or `GitHubRelease`.
+
+Creates one GitHub release per release unit, with that unit's tag and `GenerateReleaseNotes = true`. Releases whose version is a prerelease (for example `2.0.0-prerelease.25`) are created as GitHub prereleases unless `Release:MarkPrerelease` — or the channel's `MarkPrerelease` — is false, so prerelease builds are not presented as the latest stable release. This changes GitHub release metadata only: prerelease versions are still published to the NuGet feed — `PublishNuGetModule` is unaffected. When `Release:UploadArtifacts` is true, uploads every file in `Build:ArtifactsFolder` as a release asset — for Web projects this is the `<package-name>-<version>.zip` produced by `PackModule`. When `Release:DryRun` is true, logs the release it would have created and creates none.
+
+The tag must not already exist. The workflow gates release eligibility — the tool evaluates and reports it (`release-explain`, `ReportEligibilityModule`) but does not skip an existing tag itself.
 
 ## See also
 
