@@ -92,7 +92,7 @@ pipeline-dogfood *args:
     dotnet tool install Purview.Build --tool-path "{{ dogfood_tool_path }}" \
         --add-source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
     echo "Running the freshly packed tool against this repository..."
-    "{{ dogfood_tool_path }}/purview-build" {{ args }}
+    "{{ dogfood_tool_path }}/.config/purview-build" {{ args }}
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]

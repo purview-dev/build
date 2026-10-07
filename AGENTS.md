@@ -22,7 +22,7 @@ This file is the primary instruction set for human and AI agents working in this
   - `docs/wiki/Local-Development.md` — `just` recipes, `release-explain`, simulation, and the local rehearsal.
   - `docs/wiki/Migration-*.md` — per-consumer migration guides.
 - `README.md` — user-facing overview and minimal consumer setup.
-- `purview-build.json` — this repository's own pipeline configuration.
+- `.config/purview-build.json` — this repository's own pipeline configuration.
 - `Justfile` — developer recipes (`just --list`).
 
 ## Build, test, lint
