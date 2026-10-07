@@ -1,6 +1,6 @@
-using System.Text.Json;
 using Json.Schema;
 using Purview.Build.Schema;
+using System.Text.Json;
 
 namespace Purview.Build.Configuration;
 
@@ -119,8 +119,10 @@ static class JsonConfigFile
 		}
 
 		foreach (var child in children)
-		foreach (var leaf in Leaves(child))
-			yield return leaf;
+		{
+			foreach (var leaf in Leaves(child))
+				yield return leaf;
+		}
 	}
 
 	static string Location(EvaluationResults result)

@@ -60,7 +60,7 @@ static class ConfigSchemaGenerator
 	{
 		var documentation = SchemaDocumentation.Load();
 
-		JsonObject properties = new();
+		JsonObject properties = [];
 		foreach (var (section, type) in Sections)
 		{
 			properties[section] = BuildObject(type, shippedDefaults?[section] as JsonObject, documentation);
@@ -101,7 +101,7 @@ static class ConfigSchemaGenerator
 	)
 	{
 		var instance = Activator.CreateInstance(type);
-		JsonObject properties = new();
+		JsonObject properties = [];
 
 		foreach (var property in SettingsProperties(type))
 		{
@@ -179,9 +179,7 @@ static class ConfigSchemaGenerator
 	{
 		if (type.IsEnum)
 		{
-			JsonArray values = new();
-			foreach (var name in Enum.GetNames(type))
-				values.Add(name);
+			JsonArray values = [.. Enum.GetNames(type)];
 			return new JsonObject { ["type"] = "string", ["enum"] = values };
 		}
 
@@ -220,8 +218,11 @@ static class ConfigSchemaGenerator
 			&& type.GetGenericTypeDefinition() == typeof(Dictionary<,>)
 			&& type.GetGenericArguments()[0] == typeof(string)
 		)
+		{
 			return type.GetGenericArguments()[1];
+		}
 
+		// The configuration binder can also bind to an interface, so accept that too. It is not worth
 		return null;
 	}
 
@@ -249,25 +250,25 @@ static class ConfigSchemaGenerator
 			case null:
 				return null;
 			case JsonObject obj:
-			{
-				JsonObject pruned = new();
-				foreach (var (key, value) in obj)
 				{
-					if (Prune(value) is { } kept)
-						pruned[key] = kept;
+					JsonObject pruned = [];
+					foreach (var (key, value) in obj)
+					{
+						if (Prune(value) is { } kept)
+							pruned[key] = kept;
+					}
+					return pruned;
 				}
-				return pruned;
-			}
 			case JsonArray array:
-			{
-				JsonArray pruned = new();
-				foreach (var item in array)
 				{
-					if (Prune(item) is { } kept)
-						pruned.Add(kept);
+					JsonArray pruned = [];
+					foreach (var item in array)
+					{
+						if (Prune(item) is { } kept)
+							pruned.Add(kept);
+					}
+					return pruned;
 				}
-				return pruned;
-			}
 			default:
 				return node.DeepClone();
 		}

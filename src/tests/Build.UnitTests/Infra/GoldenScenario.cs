@@ -40,7 +40,7 @@ static class GoldenScenario
 	{
 		await File.WriteAllTextAsync(
 			Path.Combine(root, "package.json"),
-			$$"""{ "name": "golden", "version": "{{Version}}" }""",
+			/*lang=json,strict*/$$"""{ "name": "golden", "version": "{{Version}}" }""",
 			cancellationToken
 		);
 
@@ -50,9 +50,9 @@ static class GoldenScenario
 		var configPath = Path.Combine(root, "purview-build.json");
 		await File.WriteAllTextAsync(
 			configPath,
+			/*lang=json,strict*/
 			$$"""
-			{
-				"Build": { "Solution": "src/Product.slnx" },
+			{"Build": { "Solution": "src/Product.slnx" },
 				"Release": {
 					"Mode": "NuGet",
 					"Eligibility": { "Policy": "TrunkReservesMinor" },

@@ -81,27 +81,37 @@ public class ConfigSchemaTests
 	}
 
 	[Test]
-	public void Validate_GivenTheRepositoryConfiguration_Succeeds() =>
-		AssertValid(File.ReadAllText(Path.Combine(RepositoryRoot, "purview-build.json")));
+	public async Task Validate_GivenTheRepositoryConfiguration_Succeeds(CancellationToken cancellationToken)
+	{
+		var content = await File.ReadAllTextAsync(
+			Path.Combine(RepositoryRoot, ".config/purview-build.json"),
+			cancellationToken
+		);
+
+		await AssertValidAsync(content, cancellationToken);
+	}
 
 	[Test]
-	public void Validate_GivenCommentsAndTrailingCommas_Succeeds() =>
+	public async Task Validate_GivenCommentsAndTrailingCommas_Succeeds(CancellationToken cancellationToken) =>
 		// Consuming repositories annotate their configuration with // comments; the binder tolerates
 		// them, so validation must too.
-		AssertValid(
+		await AssertValidAsync(
+			/*lang=json*/
 			"""
 			{
 				// The solution to build.
 				"Build": { "Solution": "src/Product.slnx" },
 			}
-			"""
+			""",
+			cancellationToken
 		);
 
 	[Test]
-	public void Validate_GivenMetadataKeys_Succeeds() =>
+	public async Task Validate_GivenMetadataKeys_Succeeds(CancellationToken cancellationToken) =>
 		// "$schema" drives editor completion; other "$"-prefixed keys are ignored metadata. Both must
 		// be accepted so the schema can be referenced from the file it validates.
-		AssertValid(
+		await AssertValidAsync(
+			/*lang=json,strict*/
 			"""
 			{
 				"$schema": "https://raw.githubusercontent.com/purview-dev/build/main/purview-build.schema.json",
@@ -109,54 +119,67 @@ public class ConfigSchemaTests
 				"Build": { "Solution": "src/Product.slnx" },
 				"$marker": "used by the configuration-resolution scenarios"
 			}
-			"""
+			""",
+			cancellationToken
 		);
 
 	[Test]
-	public async Task Validate_GivenUnknownProperty_FailsNamingTheKey()
+	public async Task Validate_GivenUnknownProperty_FailsNamingTheKey(CancellationToken cancellationToken)
 	{
-		var error = AssertInvalid("""{ "Build": { "RunPackk": true } }""");
+		var error = await AssertInvalidAsync( /*lang=json,strict*/
+			"""{ "Build": { "RunPackk": true } }""",
+			cancellationToken
+		);
 
 		await Assert.That(error).Contains("Build.RunPackk");
 		await Assert.That(error).Contains("unknown property");
 	}
 
 	[Test]
-	public async Task Validate_GivenUnknownSection_FailsNamingTheKey()
+	public async Task Validate_GivenUnknownSection_FailsNamingTheKey(CancellationToken cancellationToken)
 	{
-		var error = AssertInvalid("""{ "Releases": { "Mode": "None" } }""");
+		var error = await AssertInvalidAsync( /*lang=json,strict*/
+			"""{ "Releases": { "Mode": "None" } }""",
+			cancellationToken
+		);
 
 		await Assert.That(error).Contains("Releases");
 		await Assert.That(error).Contains("unknown property");
 	}
 
 	[Test]
-	public async Task Validate_GivenWrongType_FailsNamingTheKey()
+	public async Task Validate_GivenWrongType_FailsNamingTheKey(CancellationToken cancellationToken)
 	{
-		var error = AssertInvalid("""{ "Build": { "RunPack": "yes" } }""");
+		var error = await AssertInvalidAsync( /*lang=json,strict*/
+			"""{ "Build": { "RunPack": "yes" } }""",
+			cancellationToken
+		);
 
 		await Assert.That(error).Contains("Build.RunPack");
 	}
 
 	[Test]
-	public async Task Validate_GivenInvalidEnumValue_FailsNamingTheKey()
+	public async Task Validate_GivenInvalidEnumValue_FailsNamingTheKey(CancellationToken cancellationToken)
 	{
-		var error = AssertInvalid("""{ "Release": { "Mode": "Nugget" } }""");
+		var error = await AssertInvalidAsync( /*lang=json,strict*/
+			"""{ "Release": { "Mode": "Nugget" } }""",
+			cancellationToken
+		);
 
 		await Assert.That(error).Contains("Release.Mode");
 	}
 
 	[Test]
-	public async Task Validate_GivenMalformedJson_FailsNamingTheFile()
+	public async Task Validate_GivenMalformedJson_FailsNamingTheFile(CancellationToken cancellationToken)
 	{
-		var error = AssertInvalid("{ \"Build\": { \"Solution\": ");
+		var error = await AssertInvalidAsync("{ \"Build\": { \"Solution\": ", cancellationToken);
 
 		await Assert.That(error).Contains("is not valid JSON");
 	}
 
-	static void AssertValid(string json)
+	static async Task AssertValidAsync(string json, CancellationToken cancellationToken)
 	{
-		var path = WriteTemporary(json);
+		var path = await WriteTemporaryAsync(json, cancellationToken);
 		try
 		{
 			JsonConfigFile.Validate(path);
@@ -174,9 +197,9 @@ public class ConfigSchemaTests
 		}
 	}
 
-	static string AssertInvalid(string json)
+	static async Task<string> AssertInvalidAsync(string json, CancellationToken cancellationToken)
 	{
-		var path = WriteTemporary(json);
+		var path = await WriteTemporaryAsync(json, cancellationToken);
 		try
 		{
 			try
@@ -198,10 +221,11 @@ public class ConfigSchemaTests
 		}
 	}
 
-	static string WriteTemporary(string json)
+	static async Task<string> WriteTemporaryAsync(string json, CancellationToken cancellationToken)
 	{
 		var path = Path.Combine(Path.GetTempPath(), $"purview-build-schema-{Guid.NewGuid():N}.json");
-		File.WriteAllText(path, json);
+		await File.WriteAllTextAsync(path, json, cancellationToken);
+
 		return path;
 	}
 
