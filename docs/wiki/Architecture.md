@@ -37,6 +37,8 @@ The eligibility layer is the one worth being precise about. Before this split, t
 
 `purview-build.json` is resolved before the pipeline is built: an explicit `--config` / `PURVIEW_BUILD_CONFIG` location, or the first hit from a documented probe list held as data. Relative paths inside the file always anchor to the repository root, never to the file's own directory, so moving the file changes nothing else. See [Configuration Reference](Configuration-Reference.md#where-the-configuration-file-lives).
 
+The resolved file is parse-checked and then validated against a JSON Schema generated from the settings types, so a key the tool cannot bind fails the run instead of being silently ignored. The schema is embedded in the tool for validation and shipped alongside `appsettings.json` for editors; `just schema` regenerates it and the test suite fails when it drifts from the types. See [Validation](Configuration-Reference.md#validation).
+
 Because configuration is composed before any module (and therefore any pipeline context) exists, the locality check that gates opt-in machine-local user configuration is a first-party helper rather than `ctx.IsRunningLocally()`.
 
 ## Module ordering

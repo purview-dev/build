@@ -1,4 +1,5 @@
 {
+	"$schema": "https://raw.githubusercontent.com/purview-dev/build/main/purview-build.schema.json",
 	"Build": {
 		"Solution": "src/Build.slnx",
 		"TestRoot": "src/tests",
@@ -18,6 +19,7 @@
 			"purview.build": [
 				"tools/**/Purview.Build.dll",
 				"tools/**/appsettings.json",
+				"tools/**/purview-build.schema.json",
 				"README.md",
 				"purview-logo-light.png"
 			]

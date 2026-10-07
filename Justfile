@@ -126,6 +126,13 @@ release-explain-golden:
         --treenode-filter "/*/*/ReleaseExplainGoldenTests/*"
     git --no-pager diff -- src/tests/fixtures/release-explain.golden.json
 
+# Regenerate purview-build.schema.json from the settings types, then show what changed
+[group('Build and Test')]
+schema:
+    PURVIEW_BUILD_UPDATE_SCHEMA=1 dotnet test {{ golden_test_project }} -c Release \
+        --treenode-filter "/*/*/ConfigSchemaTests/Schema_MatchesTheGeneratedFile"
+    git --no-pager diff -- purview-build.schema.json
+
 # Build the tool in Release so the scenario matrices can run the real binary
 [private]
 scenario-build:
