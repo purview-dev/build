@@ -71,6 +71,7 @@
   </Target>
 
   <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
     <PackageReference Include="ModularPipelines" />
     <PackageReference Include="ModularPipelines.DotNet" />
@@ -82,6 +83,22 @@
 
   <ItemGroup>
     <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- The configuration schema is generated from the settings types (see ConfigSchemaGenerator).
+       It is embedded so validation never depends on the filesystem, and copied to output so the
+       packaged tool ships it for editors and consumers. -->
+  <ItemGroup>
+    <EmbeddedResource
+      Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json"
+      LogicalName="Purview.Build.ConfigSchema.json"
+    />
+    <None
+      Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json"
+      Link="purview-build.schema.json"
+    >
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

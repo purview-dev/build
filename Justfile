@@ -92,7 +92,7 @@ pipeline-dogfood *args:
     dotnet tool install Purview.Build --tool-path "{{ dogfood_tool_path }}" \
         --add-source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
     echo "Running the freshly packed tool against this repository..."
-    "{{ dogfood_tool_path }}/purview-build" {{ args }}
+    "{{ dogfood_tool_path }}/.config/purview-build" {{ args }}
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]
@@ -125,6 +125,13 @@ release-explain-golden:
     PURVIEW_BUILD_UPDATE_GOLDEN=1 dotnet test {{ golden_test_project }} -c Release \
         --treenode-filter "/*/*/ReleaseExplainGoldenTests/*"
     git --no-pager diff -- src/tests/fixtures/release-explain.golden.json
+
+# Regenerate purview-build.schema.json from the settings types, then show what changed
+[group('Build and Test')]
+schema:
+    PURVIEW_BUILD_UPDATE_SCHEMA=1 dotnet test {{ golden_test_project }} -c Release \
+        --treenode-filter "/*/*/ConfigSchemaTests/Schema_MatchesTheGeneratedFile"
+    git --no-pager diff -- purview-build.schema.json
 
 # Build the tool in Release so the scenario matrices can run the real binary
 [private]

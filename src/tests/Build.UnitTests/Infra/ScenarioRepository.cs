@@ -40,7 +40,11 @@ sealed class ScenarioRepository : IDisposable
 		);
 
 		foreach (var relativePath in scenario.Files)
-			WriteConfigFile(relativePath, malformed: relativePath == scenario.Malformed);
+			WriteConfigFile(
+				relativePath,
+				malformed: relativePath == scenario.Malformed,
+				invalid: relativePath == scenario.Invalid
+			);
 
 		_userConfigHome = Path.Combine(Root, ".user-config-home");
 
@@ -97,7 +101,7 @@ sealed class ScenarioRepository : IDisposable
 		return document.RootElement.GetProperty("Build").GetProperty("Solution").GetString()!;
 	}
 
-	void WriteConfigFile(string relativePath, bool malformed)
+	void WriteConfigFile(string relativePath, bool malformed, bool invalid)
 	{
 		var path = FullPath(relativePath);
 		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -106,6 +110,17 @@ sealed class ScenarioRepository : IDisposable
 		{
 			// A truncated object: valid-looking enough to be selected, invalid enough to fail parsing.
 			File.WriteAllText(path, "{ \"Build\": { \"Solution\": \"src/Product.slnx\" ");
+			return;
+		}
+
+		if (invalid)
+		{
+			// Parseable, but the schema rejects it: a misspelled key and a wrong type.
+			File.WriteAllText(
+				path,
+				/*lang=json,strict*/
+				"""{ "Build": { "RunPack": "yes" }, "Release": { "Mdoe": "NuGet" } }"""
+			);
 			return;
 		}
 

@@ -59,6 +59,30 @@ It is also a reproducibility hazard — a machine-local file silently altering a
 - **Lower precedence than the repository configuration**, higher than `appsettings.json`.
 - When active, the resolved path is logged at `Information`.
 
+## Validation
+
+`purview-build.json` is validated against a JSON Schema when it is loaded, before any module runs. The schema is generated from the tool's settings types, so it describes exactly the keys the tool can bind, and it ships with the tool (embedded for validation, and alongside `appsettings.json` in the package).
+
+- A key the tool cannot bind — a typo, or a setting that has been renamed — is an **error**, not a silently ignored line. So is a value of the wrong type and an enum value outside its allowed set.
+- `$`-prefixed keys are reserved for metadata and ignored, so `$schema` and `$comment` are accepted.
+- Property names use the canonical casing shown in this reference (`"Build"`, not `"build"`).
+- `//` comments and trailing commas are tolerated, as they are by the configuration binder.
+
+A failure names the file and every offending key, then exits 1 — exactly as malformed JSON does.
+
+### Editor support
+
+Add the schema to the file and editors (VS Code, Rider, Visual Studio) complete keys and flag unknown ones as you type:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/purview-dev/build/main/purview-build.schema.json",
+  "Build": { "Solution": "src/MyProduct.slnx" }
+}
+```
+
+The schema is generated from the settings types: `just schema` regenerates it after a deliberate settings change, and the test suite fails when the committed file drifts from the types.
+
 ## Precedence
 
 ```text
