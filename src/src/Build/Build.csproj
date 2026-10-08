@@ -6,7 +6,7 @@
     <ToolCommandName>purview-build</ToolCommandName>
     <!-- <PackageId>Purview.Build</PackageId> -->
     <Description>Shared build/test/release pipeline for purview-dev. A Modular Pipelines based .NET tool (Purview.Build) with a GitHub composite action and reusable workflows; consumers configure, the pipeline runs.</Description>
-	<NoWarn>$(NoWarn);CA1515;CA1873;</NoWarn>
+	<NoWarn>$(NoWarn);CA1873;</NoWarn>
 	<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
 	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->
 	<IsPublishable>true</IsPublishable>
