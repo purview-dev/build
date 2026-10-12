@@ -88,11 +88,13 @@ The action's `build-version` input is optional. When omitted, `dotnet tool insta
 ### Local use
 
 ```shell
-dotnet tool install Purview.Build --tool-path ./.tools
-./.tools/purview-build
+dotnet new tool-manifest   # only if the repository has no .config/dotnet-tools.json
+dotnet tool install Purview.Build
+dotnet purview-build
 ```
 
-Omit `--version` to install the latest stable release.
+`Purview.Build` is an ordinary .NET local tool: the manifest pins the version and `dotnet tool restore`
+installs it. Pass `--version` to pin explicitly; omit it to take the latest stable release.
 
 ### Command line
 
