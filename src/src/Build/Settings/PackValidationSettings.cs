@@ -34,8 +34,14 @@ public sealed record PackValidationSettings
 	/// Compiler-flag key=value entries that must appear in each assembly's PDB
 	/// compiler-flags record (case-insensitive), e.g. "optimization=release".
 	/// </summary>
-	/// <remarks>Defaults to 'optimization=release'.</remarks>
-	public string[] RequiredCompilerFlags { get; init; } = ["optimization=release"];
+	/// <remarks>
+	/// Defaults to empty, which leaves the compiler-flag check off. This must stay empty: binding an
+	/// empty JSON array produces no configuration keys, so a non-empty initialiser here survives both
+	/// appsettings.json and a consumer's purview-build.json and cannot be turned off from
+	/// configuration at all. A non-empty default would therefore force assembly inspection on in
+	/// every consuming repository.
+	/// </remarks>
+	public string[] RequiredCompilerFlags { get; init; } = [];
 
 	/// <summary>
 	/// Package id (glob, case-insensitive; "*" matches every package) to entry path globs

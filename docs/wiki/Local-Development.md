@@ -5,11 +5,13 @@ Local work uses the `just` recipes in the `Justfile` (which delegate to plain `d
 ## Tool installation
 
 ```shell
-dotnet tool install Purview.Build --tool-path ./.tools
-./.tools/purview-build
+dotnet new tool-manifest   # only if the repository has no .config/dotnet-tools.json
+dotnet tool install Purview.Build
+dotnet purview-build
 ```
 
-Omit `--version` to install the latest stable release. For a pinned local tool manifest, add it to `.config/dotnet-tools.json` and run `dotnet tool restore`.
+`Purview.Build` is an ordinary .NET local tool. The version is pinned in `.config/dotnet-tools.json` and
+`dotnet tool restore` installs it; pass `--version` to pin explicitly.
 
 ## `just` recipes
 
@@ -29,7 +31,7 @@ Omit `--version` to install the latest stable release. For a pinned local tool m
 | `just lint-yaml` | `actionlint` over the workflow files (skipped with a note when not installed) |
 | `just clean-all` / `just scrub` | Clean build outputs |
 
-`just pipeline-*` installs the `Purview.Build` tool to `.tools/purview-build` from nuget.org when it is not already present.
+`just pipeline-*` runs `dotnet tool restore`, which installs the pinned `Purview.Build` from `.config/dotnet-tools.json`.
 
 ## Answering "did I break anything?"
 
@@ -64,7 +66,7 @@ anything. The decision's own exit code is reported inside the output, for a call
 ```shell
 just release-explain
 just release-explain --config .config/purview-build.json
-./.tools/purview-build/purview-build release-explain --format=json
+dotnet purview-build release-explain --format=json
 ```
 
 It reports the resolved configuration path, the probe trail, any shadowed files, whether user
@@ -135,7 +137,7 @@ Both publish steps then log `Would have …` and perform no action.
 `Release:Mode=LocalNuGet` pushes packages to a local feed and is only honoured when the tool runs **locally** — it is ignored in CI.
 
 ```shell
-LOCAL_NUGET_FEED_PATH=C:/local/nuget-feed/ ./.tools/purview-build --Release:Mode=LocalNuGet
+LOCAL_NUGET_FEED_PATH=C:/local/nuget-feed/ dotnet purview-build --Release:Mode=LocalNuGet
 ```
 
 The local feed path must be an absolute path. `just` runs recipes through the shell, which strips backslashes from unquoted arguments, so a backslash-based Windows path is mangled before the tool sees it and is rejected. Use the `LOCAL_NUGET_FEED_PATH` environment variable, or forward slashes:

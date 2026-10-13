@@ -101,14 +101,14 @@ NuGet versions are immutable; `--skip-duplicate` makes recovery safe if publicat
 
 ```shell
 dotnet pack src/src/Build/Build.csproj -c Release -o artifacts -p:Version=$(bun -p "require('./package.json').version") -p:PackageVersion=$(bun -p "require('./package.json').version")
-dotnet tool install Purview.Build --tool-path ./.tools --add-source ./artifacts
-./.tools/purview-build
+dotnet tool update Purview.Build --add-source ./artifacts --version $(bun -p "require('./package.json').version")
+dotnet purview-build
 ```
 
 To publish packages built by a consumer to a local feed for development:
 
 ```shell
-LOCAL_NUGET_FEED_PATH=p:/_sync-projects/.local-nuget/ ./.tools/purview-build --Release:Mode=LocalNuGet
+LOCAL_NUGET_FEED_PATH=p:/_sync-projects/.local-nuget/ dotnet purview-build --Release:Mode=LocalNuGet
 ```
 
 ## See also

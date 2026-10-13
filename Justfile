@@ -13,8 +13,7 @@ build_configuration := "Debug"
 artifacts_folder := "./artifacts"
 default_test_filter := "/*/*/*/*/"
 
-pipeline_feed := "https://api.nuget.org/v3/index.json"
-pipeline_tool := ".tools/purview-build/purview-build"
+pipeline_tool := "dotnet purview-build"
 
 # The locally built binary the release/config scenario matrices run, so a sweep does not pay
 # `dotnet run` startup per case and needs no network.
@@ -29,33 +28,31 @@ current_version := `bun -p "require('./package.json').version"`
 default:
     just --list
 
-# Install the shared Purview.Build tool from nuget.org if not present
+# Restore the repository's .NET local tools (.config/dotnet-tools.json)
 [private]
 ensure-pipeline-tool:
-    if [ ! -x "{{ pipeline_tool }}" ]; then \
-        dotnet tool install Purview.Build --tool-path .tools/purview-build --add-source "{{ pipeline_feed }}"; \
-    fi
+    dotnet tool restore
 
 # Run the PR pipeline (restore, build, lint, tests)
 [group('Pipeline')]
 pipeline-pr *args:
     just ensure-pipeline-tool
     echo "Running PR pipeline..."
-    "{{ pipeline_tool }}" {{ args }}
+    {{ pipeline_tool }} {{ args }}
 
 # Run the build pipeline (restore, build, lint)
 [group('Pipeline')]
 pipeline-build *args:
     just ensure-pipeline-tool
     echo "Running build pipeline..."
-    "{{ pipeline_tool }}" --Build:RunTests=false --Release:Mode=None {{ args }}
+    {{ pipeline_tool }} --Build:RunTests=false --Release:Mode=None {{ args }}
 
 # Run the release pipeline (restore, build, lint, tests, pack, publish, GitHub release)
 [group('Pipeline')]
 pipeline-release *args:
     just ensure-pipeline-tool
     echo "Running release pipeline..."
-    "{{ pipeline_tool }}" --Release:Mode=NuGet {{ args }}
+    {{ pipeline_tool }} --Release:Mode=NuGet {{ args }}
 
 # Run the release pipeline (restore, build, lint, tests, pack, local nuget publish)
 # Note: `just` runs recipes through the shell, which strips backslashes from unquoted arguments.
@@ -66,23 +63,26 @@ pipeline-local-release *args:
     just ensure-pipeline-tool
     just lint-fix
     echo "Running local release pipeline..."
-    "{{ pipeline_tool }}" --Release:Mode=LocalNuGet {{ args }}
+    {{ pipeline_tool }} --Release:Mode=LocalNuGet {{ args }}
 
 # Run the pipeline with tests enabled
 [group('Pipeline')]
 pipeline-tests *args:
     just ensure-pipeline-tool
     echo "Running tests pipeline..."
-    "{{ pipeline_tool }}" --Build:RunTests=true --Release:Mode=None {{ args }}
+    {{ pipeline_tool }} --Build:RunTests=true --Release:Mode=None {{ args }}
 
 # Run the pipeline through pack + validate (restore, build, lint, tests, pack, validate pack contents) without publishing/releasing
 [group('Pipeline')]
 pipeline-pack-validate *args:
     just ensure-pipeline-tool
     echo "Running pack + validate pipeline..."
-    "{{ pipeline_tool }}" --Build:RunPack=true --Build:ValidatePack=true --Release:Mode=None {{ args }}
+    {{ pipeline_tool }} --Build:RunPack=true --Build:ValidatePack=true --Release:Mode=None {{ args }}
 
 # Pack this repository's tool from source, install it to a temp tool path, and run it against this repository
+# This is the one place --tool-path is still correct: the version being installed is packed from the
+# working tree and exists only in {{ dogfood_artifacts }}, never on a feed. Routing it through
+# .config/dotnet-tools.json would rewrite a tracked file on every dogfood run.
 [group('Pipeline')]
 pipeline-dogfood *args:
     echo "Packing {{ BLUE }}{{ project }}{{ NORMAL }} from source..."
@@ -92,7 +92,7 @@ pipeline-dogfood *args:
     dotnet tool install Purview.Build --tool-path "{{ dogfood_tool_path }}" \
         --add-source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
     echo "Running the freshly packed tool against this repository..."
-    "{{ dogfood_tool_path }}/.config/purview-build" {{ args }}
+    "{{ dogfood_tool_path }}/purview-build" {{ args }}
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]
