@@ -2,7 +2,8 @@
 	<PropertyGroup>
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 		<RoslynVersion>5.9.0</RoslynVersion>
-		<TUnitVersion>1.72.16</TUnitVersion>
+		<!-- Floor set by Purview.Skills.Testing 1.0.6, which depends on TUnit.Assertions/TUnit.Core 1.75.0. -->
+		<TUnitVersion>1.75.0</TUnitVersion>
 		<DotNetRuntimeVersion>10.0.12</DotNetRuntimeVersion>
 		<MSExtensionVersion>10.10.0</MSExtensionVersion>
 		<ModularPipelinesVersion>3.2.8</ModularPipelinesVersion>
@@ -17,6 +18,8 @@
 		<PackageVersion Include="TUnit.Core" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Aspire" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Mocks" Version="$(TUnitVersion)" />
+		<!-- The Agent Skills conformance rule set, shipped alongside Purview.BuildSdk. -->
+		<PackageVersion Include="Purview.Skills.Testing" Version="1.0.6" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="$(RoslynVersion)" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="$(RoslynVersion)" />
