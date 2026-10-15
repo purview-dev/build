@@ -34,6 +34,7 @@ public class PackValidationSettingsTests
 	public async Task RequiredCompilerFlags_GivenAnEmptyArrayInConfiguration_StaysEmpty()
 	{
 		var settings = Bind(
+			/*lang=json,strict*/
 			"""
 			{
 				"PackValidation": {
@@ -52,7 +53,9 @@ public class PackValidationSettingsTests
 	[Test]
 	public async Task RequiredCompilerFlags_GivenFlagsInConfiguration_BindsThem()
 	{
-		var settings = Bind("""{ "PackValidation": { "RequiredCompilerFlags": [ "optimization=release" ] } }""");
+		var settings = Bind( /*lang=json,strict*/
+			"""{ "PackValidation": { "RequiredCompilerFlags": [ "optimization=release" ] } }"""
+		);
 
 		await Assert.That(settings.RequiredCompilerFlags).IsEquivalentTo(["optimization=release"]);
 		await Assert.That(PackageInspector.RequiresAssemblyInspection(settings)).IsTrue();

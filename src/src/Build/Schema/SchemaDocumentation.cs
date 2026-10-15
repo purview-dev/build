@@ -25,7 +25,7 @@ static partial class SchemaDocumentation
 		if (members is null)
 			return Empty;
 
-		Dictionary<string, string> documentation = new(StringComparer.Ordinal);
+		Dictionary<string, string> documentation = [with(StringComparer.Ordinal)];
 		foreach (var member in members)
 		{
 			var name = member.Attribute("name")?.Value;
