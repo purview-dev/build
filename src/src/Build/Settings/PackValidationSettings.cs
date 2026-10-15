@@ -53,6 +53,9 @@ public sealed record PackValidationSettings
 	/// "lib/$(TFM)/Foo.dll". The token is expanded into one required entry per target framework
 	/// the package actually supports (short folder name, e.g. "net8.0", "net48", "netstandard2.0"),
 	/// so every one of the package's target frameworks must independently satisfy the entry.
+	/// Pseudo-frameworks reported by NuGet's package discovery ("any", "agnostic", "unsupported" -
+	/// notably the "any" target framework a package's contentFiles group contributes) are not
+	/// target frameworks and are ignored.
 	/// </remarks>
 	public Dictionary<string, string[]> RequiredContent { get; init; } = [];
 
