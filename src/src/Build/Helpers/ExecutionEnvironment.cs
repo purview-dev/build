@@ -13,7 +13,11 @@ namespace Purview.Build.Helpers;
 /// </remarks>
 static class ExecutionEnvironment
 {
-	static readonly string[] BuildAgentVariables =
+	/// <summary>
+	/// The variables that mark a build agent. Exposed so tests emulating a local run neutralise
+	/// every one of them rather than only the variable they happen to know about.
+	/// </summary>
+	public static IReadOnlyList<string> BuildAgentVariables { get; } =
 	[
 		// Generic, set by most hosted CI including GitHub Actions.
 		"CI",

@@ -88,11 +88,13 @@ The action's `build-version` input is optional. When omitted, `dotnet tool insta
 ### Local use
 
 ```shell
-dotnet tool install Purview.Build --tool-path ./.tools
-./.tools/purview-build
+dotnet new tool-manifest   # only if the repository has no .config/dotnet-tools.json
+dotnet tool install Purview.Build
+dotnet purview-build
 ```
 
-Omit `--version` to install the latest stable release.
+`Purview.Build` is an ordinary .NET local tool: the manifest pins the version and `dotnet tool restore`
+installs it. Pass `--version` to pin explicitly; omit it to take the latest stable release.
 
 ### Command line
 
@@ -115,6 +117,8 @@ output and progress).
 Add `purview-build.json`. Everything is optional; defaults are baked into the tool. Configuration precedence is command line, environment variables, `purview-build.json`, opt-in machine-local user config, then defaults. Nested environment keys use `__`, for example `Release__Mode=NuGet`.
 
 The file is found at the repository root, or at `.config/`, `.build/`, `build/`, `.purview/` or `.github/` beneath it — first match wins, and any lower-priority file that also exists is reported as shadowed rather than merged. Select one explicitly with `--config <path>` or `PURVIEW_BUILD_CONFIG`. Relative paths inside the file always anchor to the repository root, wherever the file itself lives. Run `purview-build --help` to print the probe order and the path that resolved. See the [configuration reference](docs/wiki/Configuration-Reference.md#where-the-configuration-file-lives).
+
+`purview-build.json` is validated against a JSON Schema as it loads, so an unknown key, a wrong type or an invalid enum value fails the run instead of being silently ignored. Add `"$schema": "https://raw.githubusercontent.com/purview-dev/build/main/purview-build.schema.json"` to the file for editor completion and validation; see [validation](docs/wiki/Configuration-Reference.md#validation).
 
 The pipeline is dotnet-first but supports **Web** projects (Bun/JS/TS, e.g. the Astro/Starlight `purview-dev` portal) by setting `Build:ProjectType=Web`: restore/build/lint/test then run the repository's root `package.json` scripts (`bun install`, `bun run build`, `bun run format:check`/`bun run lint`, `bun run test`), and the pack step zips `Build:WebBuildOutput` (default `src/dist`) into `Build:ArtifactsFolder` for the GitHub release. Every Web command is overridable via the `Web*` settings below.
 

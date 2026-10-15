@@ -26,6 +26,7 @@ static class InformationalFlags
 		if (Matches(args, VersionFlags))
 			return InformationalFlag.Version;
 
+		// The help flags are recognized last, so that a user can ask for help about the version flag itself.
 		return Matches(args, HelpFlags) ? InformationalFlag.Help : InformationalFlag.None;
 	}
 

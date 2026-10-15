@@ -27,7 +27,8 @@ public class ConsumerCompatibilityTests
 	/// Every consuming repository's configuration sets Release:Mode to None and relies on the
 	/// workflow's Release__Mode environment variable to outrank it.
 	/// </summary>
-	const string ModelAConfig = """
+	const string ModelAConfig = /*lang=json,strict*/
+		"""
 		{
 			"Build": {
 				"Solution": "src/Product.slnx",
@@ -39,7 +40,8 @@ public class ConsumerCompatibilityTests
 		}
 		""";
 
-	const string WebConfig = """
+	const string WebConfig = /*lang=json,strict*/
+		"""
 		{
 			"Build": {
 				"ProjectType": "Web",

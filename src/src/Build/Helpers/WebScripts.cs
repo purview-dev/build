@@ -14,7 +14,7 @@ static class WebScripts
 		if (!document.RootElement.TryGetProperty("scripts", out var scripts))
 			return new Dictionary<string, string>();
 
-		Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
+		Dictionary<string, string> result = [with(StringComparer.OrdinalIgnoreCase)];
 		foreach (var property in scripts.EnumerateObject())
 			result[property.Name] = property.Value.GetString() ?? string.Empty;
 

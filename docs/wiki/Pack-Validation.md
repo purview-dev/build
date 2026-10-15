@@ -27,6 +27,8 @@ Both maps are keyed by package-id glob (case-insensitive; `"*"` matches every pa
 
 An entry may contain the literal token `$(TFM)`, e.g. `lib/$(TFM)/Purview.Telemetry.dll`. The token is expanded into one entry per target framework the package actually ships (short folder name, e.g. `net8.0`, `net48`, `netstandard2.0`, discovered via the package's own `lib`/`ref`/`build`/`tools`/`frameworkAssemblies` groups), so the rule must be satisfied independently for every one of the package's target frameworks. If the package has no detectable target frameworks, a `$(TFM)` entry is reported as an error rather than silently skipped.
 
+NuGet's framework discovery also reports the pseudo-frameworks `any`, `agnostic`, and `unsupported` for some layouts — most commonly the `any` target framework a package's `contentFiles` group contributes. They are not target frameworks and are ignored: substituting one would expand the token to an entry such as `lib/any/Foo.dll` that can never match, failing a package that is actually correct.
+
 ### Explicit/exhaustive content (`RequireExplicitContent`)
 
 When `RequireExplicitContent` is `true`, `RequiredContent` becomes the precise, exhaustive definition of every package's contents instead of a "must contain at least" list:

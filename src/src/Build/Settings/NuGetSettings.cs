@@ -6,9 +6,17 @@ public sealed record NuGetSettings
 {
 	public const string SectionName = "NuGet";
 
+	/// <summary>
+	/// Secret: the NuGet API key used to push packages. Prefer the <c>NUGET_APIKEY</c> environment
+	/// variable over committing it here.
+	/// </summary>
 	[SecretValue]
 	public string? APIKey { get; set; }
 
+	/// <summary>
+	/// Secret: binds <c>NuGet__NUGET_APIKEY</c>. Prefer the plain <c>NUGET_APIKEY</c> environment
+	/// variable.
+	/// </summary>
 	[SecretValue]
 	[ConfigurationKeyName("NUGET_APIKEY")]
 	public string? EnvAPIKey { get; set; }

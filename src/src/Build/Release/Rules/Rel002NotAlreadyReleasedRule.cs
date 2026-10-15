@@ -41,6 +41,7 @@ sealed class Rel002NotAlreadyReleasedRule : IEligibilityRule
 					$"Version {unit.Version} is already on the target feed. Nothing to do."
 				);
 
+			// The version is not on the feed, and the tag does not exist, so the release is eligible.
 			return RuleResult.Pass(
 				Id,
 				$"{unit.Tag} does not exist and {unit.Version} is not on the target feed."

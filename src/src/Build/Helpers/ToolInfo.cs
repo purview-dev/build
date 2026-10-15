@@ -90,6 +90,7 @@ static class ToolInfo
 		if (resolution is null)
 			return string.Empty;
 
+		// The resolution is known, so report it. The tool's own help text is not a substitute for the
 		return $"""
 
 			Resolved configuration for this directory:

@@ -33,6 +33,7 @@ sealed class Rel003StableFromStableRefRule : IEligibilityRule
 				$"Stable version {unit.Version} is released from '{input.Context.Ref}'."
 			);
 
+		// The ref does not match the policy's allowed refs for stable releases.
 		return RuleResult.Fail(
 			Id,
 			$"Stable version {unit.Version} cannot be released from '{input.Context.Ref}'. "

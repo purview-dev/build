@@ -114,6 +114,11 @@ public sealed record ConfigScenario
 	/// <summary>Relative path of a listed file to write as malformed JSON.</summary>
 	public string? Malformed { get; init; }
 
+	/// <summary>
+	/// Relative path of a listed file to write as valid JSON that violates the configuration schema.
+	/// </summary>
+	public string? Invalid { get; init; }
+
 	public string? Config { get; init; }
 
 	public string? Env { get; init; }

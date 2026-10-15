@@ -195,6 +195,30 @@ public class GlobTests
 		await Assert.That(errors).Count().IsEqualTo(1);
 	}
 
+	// NuGet's framework discovery also reports the "any" pseudo-framework for a package whose
+	// nuspec declares a contentFiles group, alongside the package's real target frameworks. It is
+	// not a target framework, so it must never be substituted for $(TFM): doing so expands the
+	// token to an entry such as "lib/any/Foo.dll" that can never match, and a valid package then
+	// fails validation.
+	[Test]
+	public async Task TfmToken_ContentFilesAnyFramework_IsIgnored()
+	{
+		List<string> errors = [];
+		string[] files = ["lib/net10.0/Foo.dll", "contentFiles/any/any/somefile.json"];
+
+		PackageInspector.ValidateContentRules(
+			files,
+			"purview.build",
+			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll", "contentFiles/any/any/somefile.json"] },
+			[],
+			errors,
+			targetFrameworkFolderNames: ["any", "net10.0"],
+			requireExplicitContent: true
+		);
+
+		await Assert.That(errors).IsEmpty();
+	}
+
 	[Test]
 	public async Task ExplicitContent_AllDeclared_Passes()
 	{

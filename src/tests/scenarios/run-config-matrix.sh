@@ -46,6 +46,7 @@ while [ "$index" -lt "$count" ]; do
 	is_local=$(printf '%s' "$scenario" | jqr '.isLocal')
 	user_config_file=$(printf '%s' "$scenario" | jqr '.userConfigFile // false')
 	malformed=$(printf '%s' "$scenario" | jqr '.malformed // ""')
+	invalid=$(printf '%s' "$scenario" | jqr '.invalid // ""')
 	expected_path=$(printf '%s' "$scenario" | jqr '.expected.resolvedPath // ""')
 	expected_exit=$(printf '%s' "$scenario" | jqr '.expected.exitCode')
 	expected_error=$(printf '%s' "$scenario" | jqr '.expected.errorContains // ""')
@@ -62,6 +63,10 @@ while [ "$index" -lt "$count" ]; do
 		mkdir -p "$case_dir/$(dirname "$file")"
 		if [ "$file" = "$malformed" ]; then
 			printf '{ "Build": { "Solution": "src/Product.slnx" \n' > "$case_dir/$file"
+		elif [ "$file" = "$invalid" ]; then
+			# Parseable, but the schema rejects it: a misspelled key and a wrong type.
+			printf '{ "Build": { "RunPack": "yes" }, "Release": { "Mdoe": "NuGet" } }\n' \
+				> "$case_dir/$file"
 		else
 			printf '{ "Build": { "Solution": "src/Product.slnx" }, "$marker": "%s" }\n' "$file" \
 				> "$case_dir/$file"

@@ -34,8 +34,14 @@ public sealed record PackValidationSettings
 	/// Compiler-flag key=value entries that must appear in each assembly's PDB
 	/// compiler-flags record (case-insensitive), e.g. "optimization=release".
 	/// </summary>
-	/// <remarks>Defaults to 'optimization=release'.</remarks>
-	public string[] RequiredCompilerFlags { get; init; } = ["optimization=release"];
+	/// <remarks>
+	/// Defaults to empty, which leaves the compiler-flag check off. This must stay empty: binding an
+	/// empty JSON array produces no configuration keys, so a non-empty initialiser here survives both
+	/// appsettings.json and a consumer's purview-build.json and cannot be turned off from
+	/// configuration at all. A non-empty default would therefore force assembly inspection on in
+	/// every consuming repository.
+	/// </remarks>
+	public string[] RequiredCompilerFlags { get; init; } = [];
 
 	/// <summary>
 	/// Package id (glob, case-insensitive; "*" matches every package) to entry path globs
@@ -47,6 +53,9 @@ public sealed record PackValidationSettings
 	/// "lib/$(TFM)/Foo.dll". The token is expanded into one required entry per target framework
 	/// the package actually supports (short folder name, e.g. "net8.0", "net48", "netstandard2.0"),
 	/// so every one of the package's target frameworks must independently satisfy the entry.
+	/// Pseudo-frameworks reported by NuGet's package discovery ("any", "agnostic", "unsupported" -
+	/// notably the "any" target framework a package's contentFiles group contributes) are not
+	/// target frameworks and are ignored.
 	/// </remarks>
 	public Dictionary<string, string[]> RequiredContent { get; init; } = [];
 

@@ -61,7 +61,7 @@ sealed record ToolCommandLine(
 		{
 			InformationalFlag.Version => ToolCommand.Version,
 			InformationalFlag.Help => ToolCommand.Help,
-			_ => ToolCommand.RunPipeline,
+			InformationalFlag.None or _ => ToolCommand.RunPipeline,
 		};
 
 		string? configPath = null;

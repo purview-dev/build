@@ -142,7 +142,7 @@ static class ConfigurationChain
 			ConfigSource.CommandLine => "--config",
 			ConfigSource.EnvironmentVariable => ConfigFileLocator.EnvironmentVariableName,
 			ConfigSource.Probe => "the default probe order",
-			_ => "nothing",
+			ConfigSource.None or _ => "nothing",
 		};
 }
 

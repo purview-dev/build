@@ -6,7 +6,8 @@
 		"",
 		"Fields: files (created relative to a throwaway repository root, each containing a marker",
 		"setting), config (--config value), env (PURVIEW_BUILD_CONFIG value), userConfig (--user-config),",
-		"isLocal (whether the run is treated as local). Expected: resolvedPath (relative to the",
+		"isLocal (whether the run is treated as local), malformed (a file to write as invalid JSON),",
+		"invalid (a file to write as schema-violating JSON). Expected: resolvedPath (relative to the",
 		"repository root, or null), shadowWarnings (relative paths), exitCode, and optionally",
 		"userConfigActive and errorContains."
 	],
@@ -228,6 +229,22 @@
 				"shadowWarnings": [],
 				"exitCode": 1,
 				"errorContains": "is not valid JSON"
+			}
+		},
+		{
+			"name": "schema-violation-fails-naming-the-key",
+			"why": "A key the tool cannot bind behaves like an unset setting; validation must fail instead.",
+			"files": ["purview-build.json"],
+			"invalid": "purview-build.json",
+			"config": null,
+			"env": null,
+			"userConfig": false,
+			"isLocal": true,
+			"expected": {
+				"resolvedPath": null,
+				"shadowWarnings": [],
+				"exitCode": 1,
+				"errorContains": "does not match the Purview.Build configuration schema"
 			}
 		},
 		{

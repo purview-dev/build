@@ -39,6 +39,7 @@ sealed class Rel005MonotonicVersionRule : IEligibilityRule
 				$"Version {unit.Version} is greater than {highest} on line {unit.Line}."
 			);
 
+		// The version is not greater than the highest existing version on the same line.
 		return RuleResult.Fail(
 			Id,
 			$"Version {unit.Version} is not greater than the highest existing version {highest} on line "

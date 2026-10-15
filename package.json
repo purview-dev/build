@@ -1,6 +1,12 @@
 {
-  "name": "purview-build",
-  "version": "0.3.6",
+  "name": "build",
+  "version": "0.5.4",
+  "description": "Shared build/test/release pipeline for the purview-dev organisation, packaged as a pinned .NET tool with a GitHub composite action and reusable workflows.",
+  "license": "MIT",
+  "author": {
+    "name": "Kieron Lanning",
+    "url": "https://kieronlanning.dev/"
+  },
   "private": true,
   "homepage": "https://purview.dev/projects/build/",
   "bugs": {

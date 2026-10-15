@@ -1,4 +1,5 @@
 using Microsoft.Extensions.FileSystemGlobbing;
+using NuGet.Frameworks;
 using NuGet.Packaging;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -70,6 +71,14 @@ static class PackageInspector
 		)];
 	}
 
+	// NuGet's framework discovery also reports the pseudo-frameworks "any", "agnostic" and
+	// "unsupported" for some package layouts - most commonly the "any" target framework that a
+	// package's contentFiles group contributes. They are not real target frameworks, so they must
+	// never be substituted for $(TFM): doing so expands the token to an entry such as
+	// "lib/any/Foo.dll" that can never match, turning a valid package into a validation failure.
+	static bool IsTargetFrameworkFolderName(string folderName) =>
+		NuGetFramework.Parse(folderName).IsSpecificFramework;
+
 	public static void ValidateContentRules(
 		IReadOnlyList<string> files,
 		string packageId,
@@ -80,7 +89,7 @@ static class PackageInspector
 		bool requireExplicitContent = false
 	)
 	{
-		targetFrameworkFolderNames ??= [];
+		targetFrameworkFolderNames = [.. (targetFrameworkFolderNames ?? []).Where(IsTargetFrameworkFolderName)];
 
 		var required = GetContentRule(requiredRules, packageId);
 		if (required is null)
@@ -164,7 +173,7 @@ static class PackageInspector
 
 		var nupkgFiles = (await nupkgReader.GetFilesAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 		var snupkgFiles = snupkgReader is null
-			? new(StringComparer.OrdinalIgnoreCase)
+			? [with(StringComparer.OrdinalIgnoreCase)]
 			: (await snupkgReader.GetFilesAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var entry in nupkgFiles)

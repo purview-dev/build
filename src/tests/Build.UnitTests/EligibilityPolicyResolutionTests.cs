@@ -143,10 +143,10 @@ public class EligibilityPolicyResolutionTests
 		EligibilityPolicySettings orphan = new() { Inherits = "DoesNotExist", Rules = ["+REL006"] };
 
 		// Act
-		var act = () => Resolve("Orphan", ("Orphan", orphan));
+		ResolvedPolicy Act() => Resolve("Orphan", ("Orphan", orphan));
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("DoesNotExist");
 		await Assert.That(exception!.Message).Contains("Orphan");
 	}
@@ -157,7 +157,7 @@ public class EligibilityPolicyResolutionTests
 		// Arrange
 
 		// Act
-		var act = () => EligibilityPolicies.Resolve(EligibilitySettings.Default, "Nonsense");
+		static ResolvedPolicy act() => EligibilityPolicies.Resolve(EligibilitySettings.Default, "Nonsense");
 
 		// Assert
 		var exception = await Assert.That(act).Throws<InvalidOperationException>();
@@ -173,7 +173,7 @@ public class EligibilityPolicyResolutionTests
 		EligibilityPolicySettings right = new() { Inherits = "Left", Rules = ["+REL007"] };
 
 		// Act
-		var act = () => Resolve("Left", ("Left", left), ("Right", right));
+		ResolvedPolicy act() => Resolve("Left", ("Left", left), ("Right", right));
 
 		// Assert
 		var exception = await Assert.That(act).Throws<InvalidOperationException>();
@@ -192,7 +192,7 @@ public class EligibilityPolicyResolutionTests
 		};
 
 		// Act
-		var act = () => Resolve("Mixed", ("Mixed", mixed));
+		ResolvedPolicy act() => Resolve("Mixed", ("Mixed", mixed));
 
 		// Assert
 		var exception = await Assert.That(act).Throws<InvalidOperationException>();
@@ -206,7 +206,7 @@ public class EligibilityPolicyResolutionTests
 		EligibilityPolicySettings bogus = new() { Rules = ["REL999"] };
 
 		// Act
-		var act = () => Resolve("Bogus", ("Bogus", bogus));
+		ResolvedPolicy act() => Resolve("Bogus", ("Bogus", bogus));
 
 		// Assert
 		var exception = await Assert.That(act).Throws<InvalidOperationException>();
@@ -239,7 +239,7 @@ public class EligibilityPolicyResolutionTests
 		EligibilitySettings settings = new() { Policy = "" };
 
 		// Act
-		var act = () => EligibilityPolicies.Resolve(settings, settings.Policy);
+		ResolvedPolicy act() => EligibilityPolicies.Resolve(settings, settings.Policy);
 
 		// Assert
 		var exception = await Assert.That(act).Throws<InvalidOperationException>();

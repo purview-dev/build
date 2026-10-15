@@ -56,8 +56,8 @@ public sealed class ValidatePackModule(
 			throw new InvalidOperationException($"No .nupkg files found in {artifactsFolder}.");
 		}
 
-		List<PackValidationResult> results = new(nupkgFiles.Length + snupkgFiles.Length);
-		Dictionary<string, PackagePair> packagePairs = new(StringComparer.OrdinalIgnoreCase);
+		List<PackValidationResult> results = [with(nupkgFiles.Length + snupkgFiles.Length)];
+		Dictionary<string, PackagePair> packagePairs = [with(StringComparer.OrdinalIgnoreCase)];
 
 		foreach (var package in nupkgFiles)
 		{
