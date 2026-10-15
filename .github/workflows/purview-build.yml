@@ -10,7 +10,10 @@ on:
         required: false
         type: string
       dotnet-version:
-        description: .NET SDK used by the consuming repository.
+        description: >-
+          .NET SDK used by the consuming repository. Ignored when global.json pins an sdk.version,
+          because every dotnet command resolves against global.json and installing anything else
+          fails the job.
         required: false
         default: 10.0.x
         type: string
@@ -77,9 +80,36 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # global.json is the single source of truth for the SDK whenever it pins one. Every dotnet
+      # command in the job resolves against it, so installing anything else fails the whole job at
+      # the first one - "A compatible .NET SDK was not found" - no matter what dotnet-version says.
+      # Deriving it here means a consuming repository states its SDK once, instead of repeating it
+      # in global.json, pr.yml and release.yml and keeping three copies in step by hand.
+      #
+      # When global.json pins nothing, the dotnet-version input applies, which is the behaviour
+      # every repository had before.
+      - name: Resolve the .NET SDK version
+        id: resolve-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pinned=""
+          if [ -f global.json ]; then
+            pinned="$(jq -r '.sdk.version // empty' global.json)"
+          fi
+
+          if [ -n "$pinned" ]; then
+            echo "global.json pins $pinned; installing that."
+            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+          else
+            echo "global.json pins no sdk.version; using the dotnet-version input (${{ inputs.dotnet-version }})."
+            echo "dotnet-version=${{ inputs.dotnet-version }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ inputs.dotnet-version }}
+          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@v2
 

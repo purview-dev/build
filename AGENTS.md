@@ -83,3 +83,37 @@ When changing release behaviour, grep the consuming repositories' `docs/wiki/Rel
 - "The workflow does not publish to NuGet" — `release-mode: NuGet` runs `PublishNuGetModule` and pushes to `NuGet:FeedUrl`.
 - "The shared pipeline does not mark the GitHub release with the prerelease flag" — `Release:MarkPrerelease` defaults to `true`.
 - "…and attaches the package artifacts" — assets are attached only when the caller passes `upload-artifacts: true`, which no consumer currently does.
+
+## Agent skills
+
+Authored skills live in the repository-root `skills/` folder. **Nothing packs them into a NuGet
+package** - `Purview.BuildSdk` 1.0.6 removed skill packaging and the build-time `.agents/` mirror
+outright. The skills CLI clones the *git* repository and only discovers a root `skills/` folder, so
+that is the one delivery route.
+
+`.agents/skills/` is the CLI's install location for skills from **other** repositories, and is
+gitignored. This repository's own skills are never installed into it - that would leave two copies to
+drift apart. Read them at their authored path, `skills/<name>/SKILL.md`.
+
+```bash
+npx skills add purview-dev/build
+```
+
+| Skill | Answers |
+| -- | -- |
+| `skills/purview-build-adoption/` | wiring the pipeline into a repository: the workflows, the action, local use, the two version axes |
+| `skills/purview-build-configuration/` | where `purview-build.json` is found, precedence, every setting, the secrets |
+| `skills/purview-build-pipeline/` | what each module does, its dependencies, and why it was skipped |
+| `skills/purview-build-pack-validation/` | the package rules, the target-framework token, and `RequireExplicitContent` |
+| `skills/purview-build-release-eligibility/` | the `REL0nn` rules, the built-in policies, and the three release models |
+
+Every skill carries the `purview-build` prefix. Skills install into one flat directory per agent,
+shared with every skill a developer has installed from anywhere, so an unprefixed name collides and
+the loser is whichever installed second.
+
+`src/tests/Repository.UnitTests/SkillTests.cs` validates them on every test run through
+`Purview.Skills.Testing`. The `[InheritsTests]` attribute there is load-bearing - TUnit does not walk
+base types during discovery, so without it the run is green and nothing is checked.
+
+A relative link from one `SKILL.md` into another skill's folder is a rule violation: only a skill's
+own folder is installed with it. Name the other skill in prose instead.
