@@ -53,7 +53,7 @@ Depends on `RestoreModule`.
 
 Depends on `RestoreModule` (Web lint invokes tooling installed by the restore step, so it must wait for `bun install`; dotnet lint is unaffected beyond running after restore). Skip condition: skipped when `Build:RunLint` is false.
 
-- **DotNet**: restores the repository's local tools (`dotnet tool restore` against `.config/dotnet-tools.json`, retried up to 3 times with a 2-second backoff on failure) and then runs `dotnet tool run csharpier check <repository root>`. The repository root is resolved by walking up to the nearest `package.json`.
+- **DotNet**: restores the repository's local tools (`dotnet tool restore` against `.config/dotnet-tools.json`, retried up to 3 times with a 2-second backoff on failure) and then runs `dotnet tool run csharpier check <repository root>`. The repository root is resolved by walking up to the nearest `package.json`. When `Build:CSharpierPath` is set, the manifest tool is bypassed: the module runs `dotnet <path> check <repository root>` against the vendored assembly instead and does not restore local tools.
 - **Web**: runs `Build:WebFormatCheckCommand` (default `bun run format:check`) then `Build:WebLintCommand` (default `bun run lint`). Each step is skipped when the corresponding script is not declared in the root `package.json`.
 
 ## RunTestsModule

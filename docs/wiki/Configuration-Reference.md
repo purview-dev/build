@@ -130,6 +130,7 @@ Malformed JSON in a configuration file fails with the file path and, where the p
 | `TestFramework` | `TUnit` | `TUnit` (tree-node filter) or `xUnit` (VSTest filter) |
 | `TestFilter` | `/*/*/*/*/` | TUnit tree-node filter or xUnit `--filter`; empty disables it |
 | `RunLint` | `true` | Restore local tools and run CSharpier check (dotnet) or `format:check` + `lint` scripts (Web) |
+| `CSharpierPath` | unset | Path (relative to the repository root, or absolute) to a CSharpier CLI `.dll` to run with `dotnet` instead of the `dotnet-tools.json` manifest tool. For a repository that needs an unreleased CSharpier build, for example C# 15 union support (dotnet only) |
 | `RunPack` | `true` | Enable packing |
 | `ValidatePack` | `true` | Enable pack validation (dotnet only; always skipped for Web) |
 | `WebInstallCommand` | `bun install` | Install command for `ProjectType=Web` |

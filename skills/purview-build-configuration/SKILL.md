@@ -54,6 +54,7 @@ for an environment variable of that name before anything else.
 | `ArtifactsFolder` | `artifacts` | package output directory |
 | `CleanArtifacts` | `true` | delete and recreate `ArtifactsFolder` before anything is produced. Ignored when `RunPack` is `false` |
 | `RunTests` / `RunLint` / `RunPack` / `ValidatePack` | `true` | the per-stage switches |
+| `CSharpierPath` | unset | path (relative to the repository root, or absolute) to a CSharpier CLI `.dll` run with `dotnet` instead of the `dotnet-tools.json` manifest tool, for an unreleased CSharpier build (dotnet only) |
 | `TestRoot` | `src/tests` | discovery root, relative to the repository root |
 | `TestPatterns` | `*Tests.csproj` | comma-separated search patterns under `TestRoot` |
 | `TestProjects` | `*` | comma-separated names/globs to actually run |
