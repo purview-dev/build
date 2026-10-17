@@ -63,6 +63,14 @@ public sealed class BuildSettings
 
 	public bool RunLint { get; init; } = true;
 
+	/// <summary>
+	/// Path (relative to the repository root, or absolute) to a CSharpier CLI assembly (a <c>.dll</c>)
+	/// to run with <c>dotnet</c> instead of the repository's <c>dotnet-tools.json</c> manifest tool.
+	/// Use when a repository needs an unreleased CSharpier build (for example C# 15 union support);
+	/// leave unset to run the manifest tool.
+	/// </summary>
+	public string? CSharpierPath { get; init; }
+
 	public bool RunPack { get; init; } = true;
 
 	public bool ValidatePack { get; init; } = true;

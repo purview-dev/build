@@ -83,6 +83,10 @@
 					"type": "boolean",
 					"default": true
 				},
+				"CSharpierPath": {
+					"type": "string",
+					"description": "Path (relative to the repository root, or absolute) to a CSharpier CLI assembly (a .dll) to run with dotnet instead of the repository\u0027s dotnet-tools.json manifest tool. Use when a repository needs an unreleased CSharpier build (for example C# 15 union support); leave unset to run the manifest tool."
+				},
 				"RunPack": {
 					"type": "boolean",
 					"default": true

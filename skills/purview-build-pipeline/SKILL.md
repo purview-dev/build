@@ -96,7 +96,8 @@ Depends on `Restore` — Web lint invokes tooling that `bun install` put there. 
 
 - **DotNet** — `dotnet tool restore` (retried up to 3 times with a 2-second backoff), then
   `dotnet tool run csharpier check <repository root>`. The root is resolved by walking up to the
-  nearest `package.json`.
+  nearest `package.json`. When `Build:CSharpierPath` is set, the manifest tool is bypassed: the module
+  runs `dotnet <path> check <repository root>` against the vendored assembly and restores nothing.
 - **Web** — `WebFormatCheckCommand` then `WebLintCommand`, each skipped when the corresponding
   script is not declared in the root `package.json`.
 

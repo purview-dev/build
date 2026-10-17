@@ -36,6 +36,17 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 		if (settings.Value.ProjectType == ProjectType.Web)
 			return await RunWebLintAsync(context, repositoryRoot, cancellationToken);
 
+		// A repository that needs an unreleased CSharpier (for example one that formats C# 15 unions)
+		// points CSharpierPath at a CLI assembly it vendors itself. The manifest tool is then bypassed
+		// entirely, so no `dotnet tool restore` is required.
+		if (!string.IsNullOrWhiteSpace(settings.Value.CSharpierPath))
+			return await RunCSharpierAsync(
+				context,
+				repositoryRoot,
+				settings.Value.CSharpierPath,
+				cancellationToken
+			);
+
 		var dotnet = context.DotNet();
 
 		const int maxAttempts = 3;
@@ -60,6 +71,26 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 		// Restore worked, now run the linter
 		return await context.Shell.Command.ExecuteCommandLineTool(
 			DotNetCLIOptions.Create("tool", "run", "csharpier", "check", repositoryRoot),
+			new() { WorkingDirectory = repositoryRoot },
+			cancellationToken: cancellationToken
+		);
+	}
+
+	async Task<CommandResult?> RunCSharpierAsync(
+		IModuleContext context,
+		string repositoryRoot,
+		string cSharpierPath,
+		CancellationToken cancellationToken
+	)
+	{
+		var path = Path.IsPathRooted(cSharpierPath)
+			? cSharpierPath
+			: Path.Combine(repositoryRoot, cSharpierPath);
+
+		context.Logger.LogInformation("Running CSharpier from {Path}.", path);
+
+		return await context.Shell.Command.ExecuteCommandLineTool(
+			DotNetCLIOptions.Create(path, "check", repositoryRoot),
 			new() { WorkingDirectory = repositoryRoot },
 			cancellationToken: cancellationToken
 		);
