@@ -55,11 +55,7 @@ static class EligibilityEvaluator
 		);
 	}
 
-	static EligibilityDecision Decide(
-		EligibilityVerdict verdict,
-		RuleResult deciding,
-		List<RuleResult> results
-	) =>
+	static EligibilityDecision Decide(EligibilityVerdict verdict, RuleResult deciding, List<RuleResult> results) =>
 		new(
 			Verdict: verdict,
 			RuleId: deciding.RuleId,

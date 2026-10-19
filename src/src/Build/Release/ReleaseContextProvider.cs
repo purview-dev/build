@@ -1,6 +1,6 @@
-using NuGet.Versioning;
 using System.Diagnostics;
 using System.Text.Json;
+using NuGet.Versioning;
 
 namespace Purview.Build.Release;
 
@@ -66,11 +66,7 @@ static class ReleaseContextProvider
 			: (Normalize(branch.Trim()), "the current git branch");
 	}
 
-	static string[] ResolveTags(
-		ReleaseContextSettings settings,
-		string repositoryRoot,
-		bool simulated
-	)
+	static string[] ResolveTags(ReleaseContextSettings settings, string repositoryRoot, bool simulated)
 	{
 		if (!string.IsNullOrWhiteSpace(settings.ExistingTags))
 			return ReadList(settings.ExistingTags, "Release:Context:ExistingTags");
@@ -82,17 +78,10 @@ static class ReleaseContextProvider
 
 		return string.IsNullOrWhiteSpace(output)
 			? []
-			: [
-				.. output.Split(
-					['\r', '\n'],
-					StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
-				),
-			];
+			: [.. output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 	}
 
-	static (IReadOnlyList<NuGetVersion> Versions, bool Known) ResolvePublishedVersions(
-		ReleaseContextSettings settings
-	)
+	static (IReadOnlyList<NuGetVersion> Versions, bool Known) ResolvePublishedVersions(ReleaseContextSettings settings)
 	{
 		if (string.IsNullOrWhiteSpace(settings.PublishedVersions))
 			return ([], false);
@@ -141,12 +130,7 @@ static class ReleaseContextProvider
 			}
 		}
 
-		return [
-			.. content.Split(
-				['\r', '\n'],
-				StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
-			),
-		];
+		return [.. content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 	}
 
 	static string Normalize(string gitRef) =>

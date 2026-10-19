@@ -18,20 +18,14 @@ static class ReleaseExplainer
 		ArgumentNullException.ThrowIfNull(startup);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var release =
-			configuration.GetSection(ReleaseSettings.SectionName).Get<ReleaseSettings>() ?? new();
-		var version =
-			configuration.GetSection(VersionSettings.SectionName).Get<VersionSettings>() ?? new();
+		var release = configuration.GetSection(ReleaseSettings.SectionName).Get<ReleaseSettings>() ?? new();
+		var version = configuration.GetSection(VersionSettings.SectionName).Get<VersionSettings>() ?? new();
 		var nuget = configuration.GetSection(NuGetSettings.SectionName).Get<NuGetSettings>() ?? new();
 
 		var context = ReleaseContextProvider.Resolve(release.Context, startup.RepositoryRoot);
 		var policy = EligibilityPolicies.Resolve(release.Eligibility, release.Eligibility.Policy);
 
-		var rawVersion = await ReadRawVersionAsync(
-			version,
-			startup.RepositoryRoot,
-			cancellationToken
-		);
+		var rawVersion = await ReadRawVersionAsync(version, startup.RepositoryRoot, cancellationToken);
 
 		var channel = release.ResolveChannel();
 		var input = EligibilityInput.Create(
@@ -63,10 +57,7 @@ static class ReleaseExplainer
 
 		try
 		{
-			return await PackageJsonVersionProvider.ReadRawVersionAsync(
-				repositoryRoot,
-				cancellationToken
-			);
+			return await PackageJsonVersionProvider.ReadRawVersionAsync(repositoryRoot, cancellationToken);
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or FileNotFoundException)
 		{
@@ -120,9 +111,7 @@ static class ReleaseExplainer
 				Raw = input.RawVersion,
 				Source = version.Source.ToString(),
 				Strictness = version.Strictness.ToString(),
-				Units = input.Unit is null
-					? []
-					: [ToReport(input.Unit)],
+				Units = input.Unit is null ? [] : [ToReport(input.Unit)],
 			},
 			Policy = new PolicyReport
 			{

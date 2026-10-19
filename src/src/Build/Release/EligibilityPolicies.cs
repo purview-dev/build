@@ -76,9 +76,7 @@ static class EligibilityPolicies
 		return resolved;
 	}
 
-	static Dictionary<string, EligibilityPolicySettings> Merge(
-		Dictionary<string, EligibilityPolicySettings> configured
-	)
+	static Dictionary<string, EligibilityPolicySettings> Merge(Dictionary<string, EligibilityPolicySettings> configured)
 	{
 		Dictionary<string, EligibilityPolicySettings> all = new(BuiltIn, StringComparer.OrdinalIgnoreCase);
 
@@ -147,11 +145,7 @@ static class EligibilityPolicies
 	static IReadOnlyList<string> Inherit(string[] own, IReadOnlyList<string>? parent) =>
 		own.Length > 0 ? own : parent ?? [];
 
-	static IReadOnlyList<string> ApplyRules(
-		string policyName,
-		string[] rules,
-		IReadOnlyList<string> inherited
-	)
+	static IReadOnlyList<string> ApplyRules(string policyName, string[] rules, IReadOnlyList<string> inherited)
 	{
 		if (rules.Length == 0)
 			return [.. inherited.Order(StringComparer.Ordinal)];
@@ -163,9 +157,7 @@ static class EligibilityPolicies
 					+ $"({string.Join(", ", rules)}). Use either an absolute list or deltas, not both."
 			);
 
-		SortedSet<string> resolved = deltas == 0
-			? new(StringComparer.Ordinal)
-			: new(inherited, StringComparer.Ordinal);
+		SortedSet<string> resolved = deltas == 0 ? new(StringComparer.Ordinal) : new(inherited, StringComparer.Ordinal);
 
 		foreach (var rule in rules)
 		{
