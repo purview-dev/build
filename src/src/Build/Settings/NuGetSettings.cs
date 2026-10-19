@@ -29,18 +29,18 @@ public sealed record NuGetSettings
 	/// </summary>
 	public bool TrustedPublishing { get; init; }
 
-	public string? GetNuGetAPIKey() =>
+	public string? GetNuGetAPIKey(Func<string, string?>? readEnvironment = null) =>
 		!string.IsNullOrWhiteSpace(APIKey) ? APIKey
 		: !string.IsNullOrWhiteSpace(EnvAPIKey) ? EnvAPIKey
-		: GetProcessAPIKey();
+		: GetProcessAPIKey(readEnvironment ?? Environment.GetEnvironmentVariable);
 
-	static string? GetProcessAPIKey()
+	static string? GetProcessAPIKey(Func<string, string?> readEnvironment)
 	{
 		// GitHub Actions and other CI inject NUGET_APIKEY as a plain environment variable, which the
 		// config binder does not map under the "NuGet" section. Read it directly as a fallback.
 		foreach (var name in new[] { "NUGET_APIKEY", "NUGET_API_KEY" })
 		{
-			var value = Environment.GetEnvironmentVariable(name);
+			var value = readEnvironment(name);
 			if (!string.IsNullOrWhiteSpace(value))
 				return value;
 		}

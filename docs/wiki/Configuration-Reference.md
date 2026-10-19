@@ -70,6 +70,22 @@ It is also a reproducibility hazard — a machine-local file silently altering a
 
 A failure names the file and every offending key, then exits 1 — exactly as malformed JSON does.
 
+### Fail-fast requirements
+
+Once the configuration chain is composed and bound — and before the pipeline is built or any module runs — the tool checks that the capabilities the run intends to use have everything they require. Every missing requirement is reported at once and the run exits 1; nothing is cleaned, restored, built, or published first.
+
+| When | Required | Why |
+| --- | --- | --- |
+| `Build:ProjectType=DotNet` | `Build:Solution` resolves to an existing file | Restore and build run unconditionally |
+| `Build:RunLint=true`, `Build:ProjectType=DotNet`, and `Build:CSharpierPath` is set | the path resolves to an existing file | Lint runs the vendored assembly instead of the manifest tool |
+| `Release:Mode=LocalNuGet`, running locally, `Build:ProjectType` not `Web` | `PublishLocalNuGet:LocalFeedPath` or `LOCAL_NUGET_FEED_PATH`, absolute | The local publish happens after pack, so a late failure wastes the whole build |
+| `Release:Publish` resolves true, `Build:ProjectType` not `Web`, `Release:DryRun=false` | a non-empty feed (`Release:Channels:<channel>:FeedUrl` or `NuGet:FeedUrl`), and either a NuGet API key or `NuGet:TrustedPublishing=true` | The push cannot succeed without them |
+| `Release:GitHubRelease` resolves true, `Release:DryRun=false` | `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` | The release cannot be created without them |
+
+`Release:DryRun=true` waives the remote credential requirements; the local feed path is still required because `LocalNuGet` is a local operation. `release-explain`, `--help`, and `--version` never run these checks — they do not build a pipeline.
+
+The tool never silently declines a release it was asked to perform: a missing credential fails the run instead of skipping the publish or release module.
+
 ### Editor support
 
 Add the schema to the file and editors (VS Code, Rider, Visual Studio) complete keys and flag unknown ones as you type:

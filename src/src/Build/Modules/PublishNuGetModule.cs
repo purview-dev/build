@@ -24,12 +24,8 @@ public sealed class PublishNuGetModule(
 			.WithSkipWhen(_ =>
 				buildSettings.Value.ProjectType == ProjectType.Web
 				|| !releaseSettings.Value.ShouldPublish()
-				|| (
-					!nugetSettings.Value.TrustedPublishing
-					&& string.IsNullOrWhiteSpace(nugetSettings.Value.GetNuGetAPIKey())
-				)
 					? SkipDecision.Skip(
-						"NuGet publishing is disabled. Set Release__Mode=NuGet (or Release__Publish=true) and either NuGet__ApiKey (or NUGET_APIKEY) or NuGet__TrustedPublishing=true to publish packages."
+						"NuGet publishing is disabled. Set Release__Mode=NuGet (or Release__Publish=true) to publish packages."
 					)
 					: SkipDecision.DoNotSkip
 			)

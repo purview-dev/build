@@ -145,7 +145,7 @@ The pipeline is dotnet-first but supports **Web** projects (Bun/JS/TS, e.g. the 
 }
 ```
 
-Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuGet__APIKey`), `GITHUB_TOKEN`, and `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`).
+Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuGet__APIKey`), `GITHUB_TOKEN`, and `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH`). Before any module runs, the tool checks the dependencies of the configured capabilities — the solution and vendored CSharpier paths, the local feed path, NuGet credentials or Trusted Publishing, and the GitHub token/repository id — and fails immediately, reporting every missing requirement at once.
 
 Release eligibility is rule-based and selected per repository with `Release:Eligibility:Policy`: `ReleaseOnMain` (the default, reproducing the pipeline's long-standing behaviour), `TrunkReservesMinor` (per-line release branches), or `FourPartServicing`. Run `purview-build release-explain` to see the decision, the rule trail and the publication that would result, without running anything. See [release models](docs/wiki/Release-Models.md).
 

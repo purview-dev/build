@@ -68,6 +68,10 @@ static class ToolInfo
 		RunTests, Pack, ValidatePack, PublishNuGet, PublishLocalNuGet, CreateGitHubRelease. Each logs a line
 		when it starts and when it finishes; a failing run reports the failed module's error and exits 1.
 
+		Required dependencies of the configured capabilities (Build:Solution, Build:CSharpierPath,
+		PublishLocalNuGet:LocalFeedPath, NuGet credentials, GitHub token and repository id) are checked
+		before any module runs, and every missing requirement is reported at once.
+
 		Set PURVIEW_BUILD_STACKTRACE=1 to include stack traces when an unexpected failure is reported.
 		Documentation: https://purview.dev/docs/build/
 		""";

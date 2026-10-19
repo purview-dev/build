@@ -136,6 +136,8 @@ Both publish steps then log `Would have …` and perform no action.
 
 `Release:Mode=LocalNuGet` pushes packages to a local feed and is only honoured when the tool runs **locally** — it is ignored in CI.
 
+The feed path is checked before the pipeline starts, along with the other startup requirements, so a missing or non-absolute path fails immediately rather than after restore, build, test, and pack.
+
 ```shell
 LOCAL_NUGET_FEED_PATH=C:/local/nuget-feed/ dotnet purview-build --Release:Mode=LocalNuGet
 ```

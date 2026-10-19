@@ -2,6 +2,8 @@
 
 The pipeline is a Modular Pipelines orchestration. Modules are registered in `BuildPipeline.cs` (`Program.cs` handles the CLI: informational options, the version banner, and failure reporting); explicit `[DependsOn]` edges define ordering, while `ModuleConfiguration` skip conditions gate opt-in behavior. Module categories are `Build` and `Release`.
 
+Before the pipeline is built, `ConfigurationPreflight` verifies the dependencies of the capabilities the run intends to use (an existing `Build:Solution` or `Build:CSharpierPath`, the local feed path, a NuGet credential or Trusted Publishing, `GITHUB_TOKEN`/`GITHUB_REPOSITORY_ID`) and reports every problem at once. Credentials are therefore a startup concern; a module never discovers one is missing after the build has already run. The ModularPipelines ASCII logo is disabled, so a run starts with the tool's own version line.
+
 Each module logs a line when it starts (`Running BuildModule...`) before its command output, so long runs report progress in CI logs where the live progress display is disabled.
 
 ```text
@@ -86,7 +88,7 @@ Inspects every `.nupkg`/`.snupkg` in `Build:ArtifactsFolder`. Because `CleanArti
 
 ## PublishNuGetModule
 
-Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the resolved `Release:Publish` is false **or** (`NuGet:TrustedPublishing` is false and no API key resolves via `NuGet:GetNuGetAPIKey()`).
+Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the resolved `Release:Publish` is false. Credentials are checked by the startup preflight, not here: with `Release:Publish` enabled the run fails before any module if neither a NuGet API key nor `NuGet:TrustedPublishing=true` is configured.
 
 `Release:Publish` is derived from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it publishes when `Release:Mode=NuGet`.
 
@@ -96,13 +98,13 @@ Pushes every `*.nupkg` in `Build:ArtifactsFolder` with `--skip-duplicate`, to th
 
 Category `Build` — it never reaches a remote feed. Depends on `PackModule` and `ValidatePackModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the tool is not running **locally** (`ctx.IsRunningLocally()`) **or** `Release:Mode` is not `LocalNuGet`. This mode is intentionally ignored in CI.
 
-Validates `PublishLocalNuGet:LocalFeedPath` (resolved via `GetLocalFeedPath()`, falling back to `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH` and then process env `LOCAL_NUGET_FEED_PATH`). The path must be absolute; drive-relative paths such as `p:foo` (backslashes stripped by a sh-style shell) are rejected with a remediation message. See [Local Development](Local-Development.md).
+Validates `PublishLocalNuGet:LocalFeedPath` (resolved via `GetLocalFeedPath()`, falling back to `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH` and then process env `LOCAL_NUGET_FEED_PATH`). The path must be absolute; drive-relative paths such as `p:foo` (backslashes stripped by a sh-style shell) are rejected with a remediation message. The startup preflight runs the same validation before any module, so a missing or invalid path fails immediately rather than after pack. See [Local Development](Local-Development.md).
 
 Moves the `.nupkg`/`.snupkg` files from `Build:ArtifactsFolder` into the local feed (skipping existing files unless `OverwriteExistingPackages` is true), optionally clears the NuGet global-packages and HTTP caches for the published packages (`ClearPackageCache`), and optionally shuts down the dotnet build server (`ShutdownDotnetBuilderServer`).
 
 ## CreateGitHubReleaseModule
 
-Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless the resolved `Release:GitHubRelease` is true **and** a GitHub token resolves via `GitHub:GetGitHubToken()`.
+Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless the resolved `Release:GitHubRelease` is true. Credentials are checked by the startup preflight: with a real (non-dry-run) release requested, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` must be present before any module runs.
 
 `Release:GitHubRelease` is derived from the channel and then from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it releases when `Release:Mode` is `NuGet` or `GitHubRelease`.
 

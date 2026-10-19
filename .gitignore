@@ -667,3 +667,9 @@ BenchmarkDotNet.Artifacts/
 .scenario-runs/
 
 !src/src/Build/Release
+
+# The shared tool project itself is named Build. The generic [Bb]uild/ pattern above otherwise
+# hides every new source file under src/src/Build/; build outputs remain ignored by the bin/ and
+# obj/ rules.
+!src/src/Build/
+

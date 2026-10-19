@@ -13,20 +13,19 @@ static class EligibilityRules
 	/// documented order.
 	/// </summary>
 	public static IReadOnlyList<IEligibilityRule> All { get; } =
-		[
-			new Rel001VersionParsesRule(),
-			new Rel002NotAlreadyReleasedRule(),
-			new Rel003StableFromStableRefRule(),
-			new Rel004ServicingPatchRule(),
-			new Rel005MonotonicVersionRule(),
-			new Rel006FourPartVersionRule(),
-			new Rel007PrereleaseLabelRule(),
-		];
+	[
+		new Rel001VersionParsesRule(),
+		new Rel002NotAlreadyReleasedRule(),
+		new Rel003StableFromStableRefRule(),
+		new Rel004ServicingPatchRule(),
+		new Rel005MonotonicVersionRule(),
+		new Rel006FourPartVersionRule(),
+		new Rel007PrereleaseLabelRule(),
+	];
 
 	public static IReadOnlyList<string> KnownIds { get; } = [.. All.Select(rule => rule.Id)];
 
-	public static bool IsKnown(string ruleId) =>
-		KnownIds.Contains(ruleId, StringComparer.OrdinalIgnoreCase);
+	public static bool IsKnown(string ruleId) => KnownIds.Contains(ruleId, StringComparer.OrdinalIgnoreCase);
 
 	public static IEligibilityRule ById(string ruleId) =>
 		All.First(rule => string.Equals(rule.Id, ruleId, StringComparison.OrdinalIgnoreCase));

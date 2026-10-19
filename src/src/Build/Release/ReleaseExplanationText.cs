@@ -61,10 +61,7 @@ static class ReleaseExplanationText
 			builder.AppendLine("  probe trail:");
 			foreach (var probe in configuration.ProbeTrail)
 			{
-				builder.AppendLine(
-					Culture,
-					$"    [{(probe.Exists ? "found" : "     ")}] {probe.RelativePath}"
-				);
+				builder.AppendLine(Culture, $"    [{(probe.Exists ? "found" : "     ")}] {probe.RelativePath}");
 			}
 		}
 
@@ -99,9 +96,7 @@ static class ReleaseExplanationText
 			builder.AppendLine("  release units:");
 			foreach (var unit in version.Units)
 			{
-				var label = unit.IsPrerelease
-					? $"  prerelease label={unit.PrereleaseLabel}"
-					: string.Empty;
+				var label = unit.IsPrerelease ? $"  prerelease label={unit.PrereleaseLabel}" : string.Empty;
 
 				builder.AppendLine(
 					Culture,
@@ -113,12 +108,7 @@ static class ReleaseExplanationText
 		builder.AppendLine();
 	}
 
-	static void AppendPolicy(
-		StringBuilder builder,
-		PolicyReport policy,
-		string gitRef,
-		string refSource
-	)
+	static void AppendPolicy(StringBuilder builder, PolicyReport policy, string gitRef, string refSource)
 	{
 		builder.AppendLine(Culture, $"Policy: {policy.Name}");
 
@@ -146,7 +136,7 @@ static class ReleaseExplanationText
 		builder.AppendLine("Rules, in evaluation order:");
 
 		foreach (var rule in explanation.Rules)
-			builder.AppendLine(Culture, $"  {rule.Verdict,-4}  {rule.Message}");
+			builder.AppendLine(Culture, $"  {rule.Verdict, -4}  {rule.Message}");
 
 		if (explanation.ShortCircuitedAt is not null)
 		{

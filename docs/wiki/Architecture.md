@@ -41,6 +41,10 @@ The resolved file is parse-checked and then validated against a JSON Schema gene
 
 Because configuration is composed before any module (and therefore any pipeline context) exists, the locality check that gates opt-in machine-local user configuration is a first-party helper rather than `ctx.IsRunningLocally()`.
 
+`ConfigurationPreflight` then verifies the dependencies of the capabilities the run intends to use — an existing `Build:Solution` or `Build:CSharpierPath`, the local feed path, a NuGet credential or Trusted Publishing, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` — before the pipeline is built. Every problem is reported at once, so a missing credential can no longer surface after clean, restore, build, test, and pack have run, and a requested release is never silently declined.
+
+The pipeline's third-party ASCII logo is disabled (`PipelineOptions.PrintLogo = false`), so a run's output starts with the tool's own version line.
+
 ## Module ordering
 
 The pipeline is registered in `BuildPipeline.cs` (`Program.cs` is the CLI boundary: informational options, the version banner, configuration binding, and failure reporting) in this order, with explicit `[DependsOn]` edges defining the graph:

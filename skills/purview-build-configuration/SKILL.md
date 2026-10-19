@@ -138,6 +138,22 @@ Never committed; supplied at runtime.
 The config binder does not map the plain process variables under their settings sections, which is
 why the settings classes read the process environment directly as a fallback.
 
+## Fail-fast preflight
+
+Before the pipeline is built, `ConfigurationPreflight` checks the dependencies of the capabilities
+the run intends to use, and reports **every** missing requirement at once:
+
+| When | Required |
+| --- | --- |
+| `Build:ProjectType=DotNet` | `Build:Solution` exists |
+| `Build:RunLint=true` and `Build:CSharpierPath` is set | that file exists |
+| `Release:Mode=LocalNuGet`, running locally, not Web | `PublishLocalNuGet:LocalFeedPath` / `LOCAL_NUGET_FEED_PATH`, absolute |
+| `Release:Publish` true, not Web, `Release:DryRun=false` | a feed, and a NuGet API key or `NuGet:TrustedPublishing=true` |
+| `Release:GitHubRelease` true, `Release:DryRun=false` | `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` |
+
+`Release:DryRun=true` waives the remote credentials. A requested release with no credential now
+fails immediately instead of skipping the publish or release module after the build.
+
 ## Diagnostics variables
 
 | Variable | Purpose |

@@ -23,7 +23,7 @@ public sealed record GitHubSettings
 
 	public string ProductHeader { get; init; } = "Purview.Build.Pipeline";
 
-	public string? GetGitHubToken()
+	public string? GetGitHubToken(Func<string, string?>? readEnvironment = null)
 	{
 		if (!string.IsNullOrWhiteSpace(AccessToken))
 			return AccessToken;
@@ -34,7 +34,7 @@ public sealed record GitHubSettings
 		// GitHub Actions provisions the automatic GITHUB_TOKEN as a plain environment variable.
 		// The config binder keys it under the "GitHub" section (GitHub:GITHUB_TOKEN), which the
 		// standard GITHUB_TOKEN env var does not map to, so read it directly as a fallback.
-		var processToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+		var processToken = (readEnvironment ?? Environment.GetEnvironmentVariable)("GITHUB_TOKEN");
 		return string.IsNullOrWhiteSpace(processToken) ? null : processToken;
 	}
 }

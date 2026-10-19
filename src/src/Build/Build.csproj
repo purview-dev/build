@@ -1,31 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <PackAsTool>true</PackAsTool>
-    <IsPackable>true</IsPackable>
-    <ToolCommandName>purview-build</ToolCommandName>
-    <!-- <PackageId>Purview.Build</PackageId> -->
-    <Description>Shared build/test/release pipeline for purview-dev. A Modular Pipelines based .NET tool (Purview.Build) with a GitHub composite action and reusable workflows; consumers configure, the pipeline runs.</Description>
-	<NoWarn>$(NoWarn);CA1515;CA1873;</NoWarn>
-	<DisablePurviewStylePolicyValidation>true</DisablePurviewStylePolicyValidation>
-	<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<PackAsTool>true</PackAsTool>
+		<IsPackable>true</IsPackable>
+		<ToolCommandName>purview-build</ToolCommandName>
+		<!-- <PackageId>Purview.Build</PackageId> -->
+		<Description>Shared build/test/release pipeline for purview-dev. A Modular Pipelines based .NET tool (Purview.Build) with a GitHub composite action and reusable workflows; consumers configure, the pipeline runs.</Description>
+		<NoWarn>$(NoWarn);CA1515;CA1873;</NoWarn>
+		<DisablePurviewStylePolicyValidation>true</DisablePurviewStylePolicyValidation>
+		<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
 	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->
-	<IsPublishable>true</IsPublishable>
-  </PropertyGroup>
+		<IsPublishable>true</IsPublishable>
+	</PropertyGroup>
 
-  <!-- Tool packages are built from the publish directory, which includes the PDB. NuGet's symbol
+	<!-- Tool packages are built from the publish directory, which includes the PDB. NuGet's symbol
        package derives from the same files, so the PDB is stripped from the .nupkg only after packing;
        the .snupkg keeps it (under the matching tools/ path) for source-link validation. -->
-  <UsingTask TaskName="StripToolPdbsFromPackage" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$([System.IO.Path]::Combine('$(MSBuildToolsPath)', 'Microsoft.Build.Tasks.Core.dll'))">
-	<ParameterGroup>
-	  <PackageFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
-	</ParameterGroup>
-	<Task>
-	  <Using Namespace="System.IO" />
-	  <Using Namespace="System.IO.Compression" />
-	  <Using Namespace="System.Linq" />
-	  <Code Type="Fragment" Language="cs">
-		<![CDATA[
+	<UsingTask
+		TaskName="StripToolPdbsFromPackage"
+		TaskFactory="RoslynCodeTaskFactory"
+		AssemblyFile="$([System.IO.Path]::Combine('$(MSBuildToolsPath)', 'Microsoft.Build.Tasks.Core.dll'))"
+	>
+		<ParameterGroup>
+			<PackageFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Using Namespace="System.IO" />
+			<Using Namespace="System.IO.Compression" />
+			<Using Namespace="System.Linq" />
+			<Code Type="Fragment" Language="cs">
+				<![CDATA[
 			foreach (var item in PackageFiles ?? System.Array.Empty<ITaskItem>())
 			{
 				var path = item.GetMetadata("FullPath");
@@ -52,42 +56,55 @@
 				File.Move(temp, path);
 			}
 		]]>
-	  </Code>
-	</Task>
-  </UsingTask>
+			</Code>
+		</Task>
+	</UsingTask>
 
-  <Target Name="StripToolPdbs" AfterTargets="GenerateNuspec" Condition="'$(IsPackable)' == 'true' AND '$(PackageOutputPath)' != ''">
+	<Target
+		Name="StripToolPdbs"
+		AfterTargets="GenerateNuspec"
+		Condition="'$(IsPackable)' == 'true' AND '$(PackageOutputPath)' != ''"
+	>
+		<ItemGroup>
+			<_StrippableToolPackage
+				Include="$(PackageOutputPath)/**/*.nupkg"
+				Exclude="$(PackageOutputPath)/**/*.snupkg"
+			/>
+		</ItemGroup>
+		<StripToolPdbsFromPackage
+			PackageFiles="@(_StrippableToolPackage)"
+			Condition="'@(_StrippableToolPackage)' != ''"
+		/>
+	</Target>
+
 	<ItemGroup>
-	  <_StrippableToolPackage Include="$(PackageOutputPath)/**/*.nupkg" Exclude="$(PackageOutputPath)/**/*.snupkg" />
+		<PackageReference Include="JsonSchema.Net" />
+		<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
+		<PackageReference Include="ModularPipelines" />
+		<PackageReference Include="ModularPipelines.DotNet" />
+		<PackageReference Include="ModularPipelines.Git" />
+		<PackageReference Include="ModularPipelines.GitHub" />
+		<PackageReference Include="NuGet.Packaging" />
+		<PackageReference Include="NuGet.Versioning" />
+		<PackageReference Include="System.Security.Cryptography.Pkcs" />
 	</ItemGroup>
-	<StripToolPdbsFromPackage PackageFiles="@(_StrippableToolPackage)" Condition="'@(_StrippableToolPackage)' != ''" />
-  </Target>
 
-  <ItemGroup>
-    <PackageReference Include="JsonSchema.Net" />
-    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
-    <PackageReference Include="ModularPipelines" />
-    <PackageReference Include="ModularPipelines.DotNet" />
-    <PackageReference Include="ModularPipelines.Git" />
-    <PackageReference Include="ModularPipelines.GitHub" />
-    <PackageReference Include="NuGet.Packaging" />
-    <PackageReference Include="NuGet.Versioning" />
-    <PackageReference Include="System.Security.Cryptography.Pkcs" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <!-- The configuration schema is generated from the settings types (see ConfigSchemaGenerator).
+	<!-- The configuration schema is generated from the settings types (see ConfigSchemaGenerator).
        It is embedded so validation never depends on the filesystem, and copied to output so the
        packaged tool ships it for editors and consumers. -->
-  <ItemGroup>
-    <EmbeddedResource Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json" LogicalName="Purview.Build.ConfigSchema.json" />
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json" Link="purview-build.schema.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource
+			Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json"
+			LogicalName="Purview.Build.ConfigSchema.json"
+		/>
+		<None Include="$(MSBuildThisFileDirectory)..\..\..\purview-build.schema.json" Link="purview-build.schema.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 </Project>
