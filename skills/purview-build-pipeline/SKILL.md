@@ -139,8 +139,10 @@ Because `CleanArtifacts` cleared the folder, those are exactly the packages this
 ## PublishNuGet
 
 Category `Release`. Depends on `Pack`, `ValidatePack`, `RunTests`. *Skipped when* `ProjectType` is
-`Web`, **or** the resolved `Release:Publish` is false, **or** `NuGet:TrustedPublishing` is false and
-no API key resolves.
+`Web`, **or** the resolved `Release:Publish` is false.
+
+Credentials are a startup concern: with publishing requested and `Release:DryRun` false, a missing
+NuGet API key (when `NuGet:TrustedPublishing` is false) fails the run before any module.
 
 Pushes every `*.nupkg` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel`
 declares one and `NuGet:FeedUrl` otherwise. With `TrustedPublishing`, pushes without an API key.
@@ -152,14 +154,18 @@ Category **`Build`** — it never reaches a remote feed. Depends on `Pack` and `
 *Skipped when* `ProjectType` is `Web`, **or** the tool is not running locally, **or** `Release:Mode`
 is not `LocalNuGet`. The mode is intentionally ignored in CI.
 
-Validates the local feed path (which must be **absolute**; a drive-relative path such as `p:foo`,
-left by a sh-style shell stripping backslashes, is rejected with a remediation message), moves the
-packages into the feed, and optionally clears the NuGet caches and shuts down the build server.
+The feed path is validated by the startup preflight before any module runs, so a missing or invalid
+path fails immediately. It must be **absolute**; a drive-relative path such as `p:foo`, left by a
+sh-style shell stripping backslashes, is rejected with a remediation message. The module then moves
+the packages into the feed, and optionally clears the NuGet caches and shuts down the build server.
 
 ## CreateGitHubRelease
 
 Category `Release`. Depends on `PublishNuGet`, `ValidatePack`, `Version`. *Skipped unless* the
-resolved `Release:GitHubRelease` is true **and** a GitHub token resolves.
+resolved `Release:GitHubRelease` is true.
+
+With a real (non-dry-run) release requested, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` are required
+before any module runs; a missing one fails the run rather than silently skipping the release.
 
 One release per release unit, with that unit's tag and `GenerateReleaseNotes = true`. A prerelease
 **version** becomes a GitHub **prerelease** unless `Release:MarkPrerelease` — or the channel's — is

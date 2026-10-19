@@ -15,7 +15,6 @@ namespace Purview.Build.Modules;
 [DependsOn<VersionModule>]
 public sealed class CreateGitHubReleaseModule(
 	IOptions<ReleaseSettings> releaseSettings,
-	IOptions<GitHubSettings> gitSettings,
 	IOptions<BuildSettings> buildSettings
 // Octokit.Release is qualified throughout: Purview.Build.Release is a namespace in this
 // assembly, so the unqualified name is ambiguous here.
@@ -26,10 +25,8 @@ public sealed class CreateGitHubReleaseModule(
 			.Create()
 			.WithSkipWhen(_ =>
 				!releaseSettings.Value.ShouldCreateGitHubRelease()
-				|| string.IsNullOrWhiteSpace(gitSettings.Value.GetGitHubToken())
 					? SkipDecision.Skip(
-						"GitHub release creation is disabled. Set Release__Mode=NuGet (or GitHubRelease), or "
-							+ "Release__GitHubRelease=true, and GITHUB_TOKEN to create a GitHub release."
+						"GitHub release creation is disabled. Set Release__Mode=NuGet (or GitHubRelease), or Release__GitHubRelease=true, to create a GitHub release."
 					)
 					: SkipDecision.DoNotSkip
 			)

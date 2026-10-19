@@ -17,6 +17,19 @@ Command line > environment variables > `purview-build.json` > baked-in defaults.
 
 The config binder does not map plain `NUGET_APIKEY`/`GITHUB_TOKEN`/`LOCAL_NUGET_FEED_PATH` process env vars under their settings sections, so the settings classes fall back to reading the process environment directly.
 
+## Required before any module runs
+
+Credentials and paths are checked by the startup preflight, before the pipeline is built. A missing requirement fails the run immediately and names every problem at once — it is never discovered by a module after clean, restore, build, test, and pack have already run.
+
+| Requirement | Needed when | Fix |
+| --- | --- | --- |
+| `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet:LocalFeedPath`) | `Release:Mode=LocalNuGet`, running locally | Set an absolute feed path |
+| `NUGET_APIKEY` / `NUGET_API_KEY` (or `NuGet:APIKey`) | `Release:Publish` is enabled and `NuGet:TrustedPublishing` is false | Provide the key, or opt into Trusted Publishing |
+| `GITHUB_TOKEN` | a real (non-dry-run) GitHub release is requested | Provide a token that can create releases |
+| `GITHUB_REPOSITORY_ID` | a real (non-dry-run) GitHub release is requested | Supplied automatically by GitHub Actions; set it for a local run |
+
+`Release:DryRun=true` waives the remote credentials. `Release:Mode=NuGet` in a workflow therefore fails rather than silently skipping publication when neither a key nor Trusted Publishing is configured.
+
 ## Optional-input forwarding
 
 The reusable workflows (`purview-build.yml`, `purview-release.yml`) forward every **optional** input only when it is non-empty: `test-filter`, `test-projects`, `config-path`, `eligibility-policy`, `release-channel`, and `version-source`. An empty forwarded value would override a consuming repository's `purview-build.json` (env vars take precedence over JSON) and silently erase a configured value — see commit `4d72bf7`.

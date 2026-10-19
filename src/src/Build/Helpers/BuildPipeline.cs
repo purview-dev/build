@@ -30,11 +30,18 @@ static class BuildPipeline
 		ConfigurationChain.Apply(builder.Configuration, startup, args);
 		ApplyLogLevel(builder);
 		BindSettings(builder);
-		ValidateInterlocks(builder);
+		ValidateConfiguration(builder, startup);
 		AddGitHubClient(builder);
 		AddModules(builder);
 
-		builder.ConfigurePipelineOptions(options => options.ThrowOnPipelineFailure = false);
+		builder.ConfigurePipelineOptions(options =>
+		{
+			options.ThrowOnPipelineFailure = false;
+
+			// The ModularPipelines ASCII logo is third-party branding, not build output: a run starts
+			// with the tool's own version line.
+			options.PrintLogo = false;
+		});
 
 		// Modules resolve every configured path relative to the repository root.
 		Environment.CurrentDirectory = startup.RepositoryRoot;
@@ -47,13 +54,23 @@ static class BuildPipeline
 	}
 
 	/// <summary>
-	/// Rejects configurations that could cause real damage, before any module runs.
+	/// Fails before the pipeline is built when the resolved configuration cannot support the run, and
+	/// rejects configurations that could cause real damage.
 	/// </summary>
-	static void ValidateInterlocks(PipelineBuilder builder) =>
+	/// <remarks>
+	/// Both checks run before any module is registered, so nothing is cleaned, restored, built or
+	/// published first. A missing local feed path, credential, or solution file is reported here
+	/// rather than by the module that happens to need it.
+	/// </remarks>
+	static void ValidateConfiguration(PipelineBuilder builder, PipelineStartup startup)
+	{
+		ConfigurationPreflight.Validate(builder.Configuration, startup.RepositoryRoot);
+
 		builder
 			.Configuration.GetSection(ReleaseSettings.SectionName)
 			.Get<ReleaseSettings>()
 			?.ValidateSimulationInterlock();
+	}
 
 	/// <summary>
 	/// Applies <c>Build:LogLevel</c> to the pipeline logger, defaulting to <see cref="LogLevel.Information"/> so

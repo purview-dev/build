@@ -27,7 +27,11 @@ public sealed record PublishLocalNuGetSettings : IValidatableObject
 	/// (<c>PublishLocalNuGet__LOCAL_NUGET_FEED_PATH</c>) and then to the plain
 	/// <c>LOCAL_NUGET_FEED_PATH</c> process environment variable.
 	/// </summary>
-	public string? GetLocalFeedPath()
+	/// <param name="readEnvironment">
+	/// Environment lookup override, used by the startup preflight so it can be tested without mutating
+	/// the process environment. Defaults to <see cref="Environment.GetEnvironmentVariable(string)"/>.
+	/// </param>
+	public string? GetLocalFeedPath(Func<string, string?>? readEnvironment = null)
 	{
 		if (!string.IsNullOrWhiteSpace(LocalFeedPath))
 			return LocalFeedPath;
@@ -35,7 +39,9 @@ public sealed record PublishLocalNuGetSettings : IValidatableObject
 		if (!string.IsNullOrWhiteSpace(EnvLocalFeedPath))
 			return EnvLocalFeedPath;
 
-		var processValue = Environment.GetEnvironmentVariable("LOCAL_NUGET_FEED_PATH");
+		var processValue = (readEnvironment ?? Environment.GetEnvironmentVariable)(
+			"LOCAL_NUGET_FEED_PATH"
+		);
 		return string.IsNullOrWhiteSpace(processValue) ? null : processValue;
 	}
 
