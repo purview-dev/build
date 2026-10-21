@@ -125,12 +125,9 @@ static class ConfigurationPreflight
 	)
 	{
 		// The module is intentionally ignored in CI and for Web projects, so demanding the feed path
-		// there would fail a run that never touches it.
-		if (
-			!isRunningLocally
-			|| build.ProjectType == ProjectType.Web
-			|| release.Mode != ReleaseMode.LocalNuGet
-		)
+		// there would fail a run that never touches it. Shared with the module so the two cannot
+		// disagree about whether the path is needed.
+		if (!LocalNuGetPublishing.IsEnabled(build.ProjectType, release.Mode, isRunningLocally))
 			return;
 
 		// Bind the resolved path into the instance being validated, so the same environment lookup

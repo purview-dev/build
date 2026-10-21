@@ -66,7 +66,7 @@ CI builds with `--warnaserror`.
 - **Do not push release tags manually.** The tool owns tagging (`v{version}`) and the GitHub release (`CreateGitHubReleaseModule`); releasing = bump `package.json` and merge. See `docs/wiki/Release-Flow.md`.
 - **Secrets**: supplied at runtime via env vars / CI secrets (`NUGET_APIKEY`/`NUGET_API_KEY`, `GITHUB_TOKEN`, `LOCAL_NUGET_FEED_PATH`). Never hardcode or commit them.
 - **Configuration precedence**: command line > environment variables (nested keys use `__`) > `purview-build.json` > baked-in defaults (`appsettings.json`).
-- **LocalNuGet is local-only**: `Release:Mode=LocalNuGet` is ignored in CI; it only works when running the tool locally.
+- **LocalNuGet is local-only**: `Release:Mode=LocalNuGet` is ignored in CI; it only works when running the tool locally. `LocalNuGetPublishing.DisabledReason` is the single answer to "will this run publish locally?" — `ConfigurationPreflight` and `PublishLocalNuGetModule` must both go through it, and locality must come from `ExecutionEnvironment`, never from ModularPipelines' `ctx.IsRunningLocally()` (a different detector, which does not treat `CI` as a build agent). When the two disagreed, preflight waived the feed-path requirement for a run the module then performed without one.
 
 ## Change process
 
