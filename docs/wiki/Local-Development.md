@@ -18,7 +18,7 @@ dotnet purview-build
 | Recipe | Purpose |
 | --- | --- |
 | `just build` | Build `src/Build.slnx` (Debug) |
-| `just test` / `just test-unit` | Run tests with a TUnit tree-node filter (unit filter: `/*/*/*/*[Category=Unit]`) |
+| `just test` / `just test-unit` | `just test` runs every suite, the same set CI runs; `just test-unit` narrows to `/*/*/*/*[Category=Unit]` |
 | `just lint-check` / `just lint-fix` | CSharpier check / format |
 | `just pack` | `dotnet pack` with the current `package.json` version |
 | `just pipeline-pr` | Run the shared tool (restore, build, lint, tests) |

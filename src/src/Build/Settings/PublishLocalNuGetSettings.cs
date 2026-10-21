@@ -45,9 +45,30 @@ public sealed record PublishLocalNuGetSettings : IValidatableObject
 		return string.IsNullOrWhiteSpace(processValue) ? null : processValue;
 	}
 
+	/// <summary>
+	/// Key under which <see cref="ValidationContext.Items"/> may carry an environment lookup for
+	/// <see cref="Validate(ValidationContext)"/> to use instead of the process environment.
+	/// </summary>
+	/// <remarks>
+	/// Without this, <see cref="Validate(ValidationContext)"/> falls back to the real process
+	/// environment even when the caller supplied its own lookup, so a developer machine with
+	/// <c>LOCAL_NUGET_FEED_PATH</c> set silently satisfies a requirement the caller was deliberately
+	/// testing as absent. The startup preflight injects a lookup precisely so it does not depend on
+	/// ambient state; this is what makes that injection reach the validator.
+	/// </remarks>
+	public const string EnvironmentLookupKey = "Purview.Build.EnvironmentLookup";
+
 	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 	{
-		var localFeedPath = GetLocalFeedPath();
+		ArgumentNullException.ThrowIfNull(validationContext);
+
+		var readEnvironment =
+			validationContext.Items.TryGetValue(EnvironmentLookupKey, out var lookup)
+			&& lookup is Func<string, string?> environmentLookup
+				? environmentLookup
+				: null;
+
+		var localFeedPath = GetLocalFeedPath(readEnvironment);
 		if (string.IsNullOrWhiteSpace(localFeedPath))
 		{
 			yield return new ValidationResult(

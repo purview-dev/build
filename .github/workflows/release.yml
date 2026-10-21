@@ -103,7 +103,9 @@ jobs:
           Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
           Release__UploadArtifacts: "true"
           NuGet__FeedUrl: https://api.nuget.org/v3/index.json
-          Build__RunTests: "false"
-          Build__RunLint: "false"
+          # The release path publishes to nuget.org and tags the repository, so it is the last place
+          # that should take the build on trust. Tests and lint run here as they do on a PR.
+          Build__RunTests: "true"
+          Build__RunLint: "true"
           Build__ValidatePack: "true"
         run: "$RUNNER_TEMP/purview-build/purview-build"

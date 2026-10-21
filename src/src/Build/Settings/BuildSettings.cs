@@ -55,6 +55,39 @@ public sealed class BuildSettings
 	public TestFramework TestFramework { get; init; } = TestFramework.TUnit;
 
 	/// <summary>
+	/// Maximum number of test projects run concurrently. <c>0</c> (the default) uses
+	/// <see cref="Environment.ProcessorCount"/>; <c>1</c> runs them one at a time.
+	/// </summary>
+	/// <remarks>
+	/// Every test project is its own <c>dotnet test</c> process, and each test runner parallelises
+	/// internally on top of that. Launching all of them at once oversubscribes the machine on a large
+	/// solution: the projects compete for the same cores, the slowest one finishes later than it would
+	/// have alone, and memory pressure rises with the count rather than with the bound.
+	/// </remarks>
+	[Range(0, 1024)]
+	public int MaxTestParallelism { get; init; }
+
+	/// <summary>
+	/// How many tests a single test project runs concurrently (TUnit's
+	/// <c>--maximum-parallel-tests</c>). <c>0</c> (the default) derives three quarters of
+	/// <see cref="Environment.ProcessorCount"/>; a negative value hands the decision back to the runner.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the second of two parallelism bounds and they multiply: <see cref="MaxTestParallelism"/>
+	/// governs how many test <em>projects</em> run at once, this one how many tests run inside each. A
+	/// suite whose tests spawn processes — an MSBuild harness, say — saturates the machine well before
+	/// either bound is reached, which is why both default to less than "as much as possible".
+	/// </para>
+	/// <para>
+	/// The runner's own auto-detection assumes cheap, CPU-bound tests. On a 416-test harness suite it was
+	/// the slowest setting measured, 36% behind three quarters of the core count.
+	/// </para>
+	/// </remarks>
+	[Range(-1, 1024)]
+	public int MaxParallelTestsPerProject { get; init; }
+
+	/// <summary>
 	/// Test filter. For TUnit this is a Microsoft.Testing.Platform tree-node filter
 	/// (e.g. "/*/*/*/*[Category=Unit]"); for xUnit it is a VSTest filter (e.g. "Category=Unit").
 	/// Empty disables the filter.

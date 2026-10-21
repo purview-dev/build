@@ -55,6 +55,6 @@ CleanArtifacts ─┬→ Version ─┬─────────────�
 | `docs/wiki` | This wiki |
 | `purview-build.json` | This repository's own pipeline configuration (the tool dogfoods itself) |
 | `src/tests/Build.UnitTests` | Unit suites. The project name gives every test `[Category("Unit")]` automatically (the Purview SDK derives it from the `*.<Type>Tests` suffix) |
-| `src/tests/Build.IntegrationTests` | Integration suites, likewise `[Category("Integration")]`. CI runs the unit filter only |
+| `src/tests/Build.IntegrationTests` | Integration suites, likewise `[Category("Integration")]`. Run in CI alongside the unit suites |
 | `src/tests/fixtures` | The declarative scenario matrices and the `release-explain` golden file |
 | `src/tests/scenarios` | The shell runners behind `just release-matrix` / `just config-matrix` |

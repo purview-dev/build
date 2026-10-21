@@ -74,6 +74,16 @@
 					],
 					"default": "TUnit"
 				},
+				"MaxTestParallelism": {
+					"type": "integer",
+					"description": "Maximum number of test projects run concurrently. 0 (the default) uses ProcessorCount; 1 runs them one at a time.",
+					"default": 0
+				},
+				"MaxParallelTestsPerProject": {
+					"type": "integer",
+					"description": "How many tests a single test project runs concurrently (TUnit\u0027s --maximum-parallel-tests). 0 (the default) derives three quarters of ProcessorCount; a negative value hands the decision back to the runner.",
+					"default": 0
+				},
 				"TestFilter": {
 					"type": "string",
 					"description": "Test filter. For TUnit this is a Microsoft.Testing.Platform tree-node filter (e.g. \u0022/*/*/*/*[Category=Unit]\u0022); for xUnit it is a VSTest filter (e.g. \u0022Category=Unit\u0022). Empty disables the filter.",

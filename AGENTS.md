@@ -30,7 +30,7 @@ This file is the primary instruction set for human and AI agents working in this
 The developer entry points are the `just` recipes; the .NET SDK and `just` are required.
 
 - `just build` — compile `src/Purview.Build` (Debug).
-- `just test` / `just test-unit` — run tests under `src/tests`. CI runs the unit filter only (`Build:TestFilter` in `purview-build.json`); `just test` runs everything.
+- `just test` / `just test-unit` — run tests under `src/tests`. CI and `just test` both run **everything**: `Build:TestFilter` in `purview-build.json` is `/*/*/*/*/`. `just test-unit` narrows to the unit suites for a faster local loop.
 - `just test-eligibility` — the eligibility and config-resolution suites only.
 - `just release-matrix` / `just config-matrix` — run every scenario through the real CLI. **Run both before any change to release or configuration behaviour**; they need no secrets and no network.
 - `just release-explain` / `just release-simulate <ref> <version>` — explain the release decision, mutating nothing.

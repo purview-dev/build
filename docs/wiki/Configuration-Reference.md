@@ -144,6 +144,8 @@ Malformed JSON in a configuration file fails with the file path and, where the p
 | `TestPatterns` | `*Tests.csproj` | Comma-separated project search patterns applied under `TestRoot` |
 | `TestProjects` | `*` | Comma-separated project names/globs to run; `*` runs all discovered |
 | `TestFramework` | `TUnit` | `TUnit` (tree-node filter) or `xUnit` (VSTest filter) |
+| `MaxTestParallelism` | `0` | Maximum test projects run concurrently. `0` uses `Environment.ProcessorCount`; `1` runs them one at a time. Each project is its own `dotnet test` process that parallelises internally, so an unbounded fan-out oversubscribes the machine on a large solution. Also bounds `ValidatePackModule`'s per-package validation |
+| `MaxParallelTestsPerProject` | `0` | How many tests run concurrently *inside* each project (TUnit `--maximum-parallel-tests`). `0` derives three quarters of `ProcessorCount`; `-1` hands the decision to the runner. The two bounds multiply, so both default below "as much as possible". The runner's own auto-detection assumes cheap CPU-bound tests and was the slowest setting measured on a harness suite whose tests spawn MSBuild — 183s against 135s for three quarters of the cores |
 | `TestFilter` | `/*/*/*/*/` | TUnit tree-node filter or xUnit `--filter`; empty disables it |
 | `RunLint` | `true` | Restore local tools and run CSharpier check (dotnet) or `format:check` + `lint` scripts (Web) |
 | `CSharpierPath` | unset | Path (relative to the repository root, or absolute) to a CSharpier CLI `.dll` to run with `dotnet` instead of the `dotnet-tools.json` manifest tool. For a repository that needs an unreleased CSharpier build, for example C# 15 union support (dotnet only) |

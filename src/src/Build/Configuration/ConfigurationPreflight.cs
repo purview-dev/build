@@ -140,15 +140,21 @@ static class ConfigurationPreflight
 			LocalFeedPath = settings.GetLocalFeedPath(environment) ?? string.Empty,
 		};
 
+		// The lookup travels with the context so the validator resolves the feed path exactly as the
+		// module would. Without it the validator reaches for the real process environment, and a
+		// developer machine with LOCAL_NUGET_FEED_PATH set would quietly satisfy a requirement this
+		// preflight was asked to check as absent.
+		ValidationContext validationContext = new(
+			effective,
+			serviceProvider: null,
+			items: new Dictionary<object, object?>
+			{
+				[PublishLocalNuGetSettings.EnvironmentLookupKey] = environment,
+			}
+		);
+
 		List<ValidationResult> results = [];
-		if (
-			Validator.TryValidateObject(
-				effective,
-				new ValidationContext(effective),
-				results,
-				validateAllProperties: true
-			)
-		)
+		if (Validator.TryValidateObject(effective, validationContext, results, validateAllProperties: true))
 			return;
 
 		problems.AddRange(

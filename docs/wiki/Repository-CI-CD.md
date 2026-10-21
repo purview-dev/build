@@ -14,7 +14,9 @@ Runs on pull requests and pushes to `main`:
 6. Install the packed tool from the `artifacts` source into a temp tool path.
 7. **Dogfood**: run the freshly installed `purview-build` against this repository (with `GITHUB_TOKEN`). The tool restores, builds, lints, runs tests, packs, and validates itself.
 
-This repository's `purview-build.json` sets `Build:TestFilter` to `/*/*/*/*[Category=Unit]`, so the dogfood run executes the unit suites only. Categories come from the test project names — `Build.UnitTests` and `Build.IntegrationTests` — which the Purview SDK turns into assembly-level TUnit categories; no test writes a `[Category]` attribute by hand. Run the integration suites locally with `just test`.
+This repository's `purview-build.json` sets `Build:TestFilter` to `/*/*/*/*/`, so the dogfood run executes **every** suite — unit and integration alike. Categories still come from the test project names — `Build.UnitTests` and `Build.IntegrationTests` — which the Purview SDK turns into assembly-level TUnit categories; no test writes a `[Category]` attribute by hand. Narrow to the unit suites locally with `just test-unit`.
+
+The filter used to be `/*/*/*/*[Category=Unit]`, which quietly excluded the integration suites from every PR and from the release. A suite that only ever runs on a developer's machine is not a gate, so the filter now matches what `just test` runs.
 
 ## Release (`release.yml`)
 
