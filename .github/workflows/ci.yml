@@ -41,10 +41,12 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           -p:PackageVersion=${{ steps.version.outputs.version }}
 
+      # --source, not --add-source: this repository must never run a released Purview.Build, and
+      # --add-source leaves nuget.org able to satisfy a version that has already shipped.
       - name: Install packed tool
         shell: bash
         run: |
-          dotnet tool install Purview.Build --tool-path "$RUNNER_TEMP/purview-build" --add-source artifacts --version "${{ steps.version.outputs.version }}"
+          dotnet tool install Purview.Build --tool-path "$RUNNER_TEMP/purview-build" --source artifacts --version "${{ steps.version.outputs.version }}"
 
       - name: Dogfood — the project builds itself
         env:

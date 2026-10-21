@@ -7,17 +7,20 @@ export DO_NOT_TRACK := "1"
 
 root_folder := "src"
 project := root_folder / "Build.slnx"
+tool_project := root_folder / "src" / "Build" / "Build.csproj"
 tests_root := root_folder / "tests"
 tests_pattern := "*Tests.csproj"
 build_configuration := "Debug"
 artifacts_folder := "./artifacts"
 default_test_filter := "/*/*/*/*/"
 
-pipeline_tool := "dotnet purview-build"
+# This repository never runs a released Purview.Build: every recipe below runs the tool built from
+# the working tree. Published out of bin/ because a pipeline run rebuilds the solution underneath
+# itself, which would overwrite the binary currently executing.
+local_tool_dir := ".tools/local"
+local_tool := local_tool_dir / "Purview.Build"
+pipeline_tool := local_tool
 
-# The locally built binary the release/config scenario matrices run, so a sweep does not pay
-# `dotnet run` startup per case and needs no network.
-local_tool := "src/src/Build/bin/Release/net10.0/Purview.Build"
 golden_test_project := tests_root / "Build.UnitTests" / "Build.UnitTests.csproj"
 dogfood_artifacts := "./artifacts/dogfood"
 dogfood_tool_path := "./.tools/dogfood"
@@ -28,10 +31,18 @@ current_version := `bun -p "require('./package.json').version"`
 default:
     just --list
 
-# Restore the repository's .NET local tools (.config/dotnet-tools.json)
+# Restore the repository's .NET local tools (.config/dotnet-tools.json) and build the pipeline tool
 [private]
 ensure-pipeline-tool:
     dotnet tool restore
+    just build-local-tool
+
+# Build this repository's own tool, in Release, to .tools/local (what every pipeline recipe runs)
+[group('Build and Test')]
+build-local-tool:
+    echo "Building {{ BLUE }}{{ tool_project }}{{ NORMAL }} to {{ GREEN }}{{ local_tool_dir }}{{ NORMAL }} (Release)"
+    dotnet publish {{ tool_project }} -c Release -o "{{ local_tool_dir }}" \
+        -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
 
 # Run the PR pipeline (restore, build, lint, tests)
 [group('Pipeline')]
@@ -90,33 +101,33 @@ pipeline-dogfood *args:
     dotnet pack {{ project }} -c Release -o "{{ dogfood_artifacts }}" \
         -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
     dotnet tool install Purview.Build --tool-path "{{ dogfood_tool_path }}" \
-        --add-source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
+        --source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
     echo "Running the freshly packed tool against this repository..."
     "{{ dogfood_tool_path }}/purview-build" {{ args }}
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]
 release-explain *args:
-    just scenario-build
+    just build-local-tool
     "{{ local_tool }}" release-explain {{ args }}
 
 # Explain the release decision for a simulated ref and version; mutates nothing and makes no network calls
 # Example: just release-simulate refs/heads/release/2.0 2.0.2 --Release:Eligibility:Policy=TrunkReservesMinor
 [group('Release')]
 release-simulate ref version *args:
-    just scenario-build
+    just build-local-tool
     sh src/tests/scenarios/simulate.sh "{{ ref }}" "{{ version }}" {{ args }}
 
 # Run every eligibility scenario through the real CLI; non-zero on any mismatch
 [group('Release')]
 release-matrix:
-    just scenario-build
+    just build-local-tool
     sh src/tests/scenarios/run-eligibility-matrix.sh
 
 # Run every config-resolution scenario through the real CLI; non-zero on any mismatch
 [group('Release')]
 config-matrix:
-    just scenario-build
+    just build-local-tool
     sh src/tests/scenarios/run-config-matrix.sh
 
 # Regenerate the release-explain JSON golden file, then show what changed
@@ -132,13 +143,6 @@ schema:
     PURVIEW_BUILD_UPDATE_SCHEMA=1 dotnet test {{ golden_test_project }} -c Release \
         --treenode-filter "/*/*/ConfigSchemaTests/Schema_MatchesTheGeneratedFile"
     git --no-pager diff -- purview-build.schema.json
-
-# Build the tool in Release so the scenario matrices can run the real binary
-[private]
-scenario-build:
-    if [ ! -x "{{ local_tool }}" ] && [ ! -x "{{ local_tool }}.exe" ]; then \
-        dotnet build {{ project }} -c Release; \
-    fi
 
 # Build the project with the specified configuration, defaulting to "Debug"
 [group('Build and Test')]
@@ -230,6 +234,7 @@ lint-fix:
 [group('Utilities')]
 scrub:
     find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
+    rm -rf "{{ local_tool_dir }}" "{{ dogfood_tool_path }}" "{{ dogfood_artifacts }}"
     just clean
     just restore --force-evaluate
     dotnet build-server shutdown

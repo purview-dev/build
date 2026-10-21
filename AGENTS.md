@@ -36,8 +36,9 @@ The developer entry points are the `just` recipes; the .NET SDK and `just` are r
 - `just release-explain` / `just release-simulate <ref> <version>` — explain the release decision, mutating nothing.
 - `just lint-yaml` — `actionlint` over the workflow files (skipped with a note when not installed).
 - `just lint-check` / `just lint-fix` — CSharpier (via local tool manifest `.config/dotnet-tools.json`).
-- `just pipeline-pr` / `just pipeline-build` / `just pipeline-release` / `just pipeline-tests` — run the shared tool itself.
-- `just pipeline-dogfood` — pack the tool from source, install it to a temp tool path, and run it against this repository. Use this rather than running the `bin/` binary against a Release build of itself, which fails on a locked file.
+- `just build-local-tool` — publish the tool from source (Release) to `.tools/local`.
+- `just pipeline-pr` / `just pipeline-build` / `just pipeline-release` / `just pipeline-tests` — run the shared tool itself. Each builds `.tools/local` first; **this repository never resolves `Purview.Build` from a feed** (see Rules and invariants).
+- `just pipeline-dogfood` — pack the tool from source, install it from that folder alone, and run it against this repository. This is the check that the *packaged* tool is installable; the `pipeline-*` recipes above cover the ordinary loop.
 - `just clean-all` / `just scrub` — clean build outputs.
 
 CI builds with `--warnaserror`.
@@ -55,6 +56,7 @@ CI builds with `--warnaserror`.
 - **Versioning**: the single source of truth is the `version` field in `package.json`. `VersionModule` resolves it once into an ordered set of release units; every downstream module reads that result and **never recomputes a version**. `Version:Strictness` defaults to `NuGet`, which accepts four-part versions — two consuming repositories ship them, so do not tighten this default.
 - **Eligibility ownership**: the tool *evaluates* release eligibility and reports it; the workflow *decides* and sets `Release__Mode`. The tool must never silently decline to release when asked to. `ReportEligibilityModule` is category `Build` and every failure path in it is a warning.
 - **Rule IDs are permanent**: never renumber or repurpose a `REL0nn`.
+- **This repository builds itself and never references its own released package.** The `Justfile` runs `.tools/local/Purview.Build`, published from the working tree; `ci.yml` and `release.yml` pack from source and install with `--source artifacts` (not `--add-source`, which leaves nuget.org able to satisfy an already-shipped version); `Purview.Build` is absent from `.config/dotnet-tools.json`. `SelfHostingTests` enforces all three. The reusable workflows and the composite action are the opposite case — they install the published tool for consuming repositories and must keep doing so.
 - **Do not add a `concurrency` block to `purview-release.yml`**: a shared group between caller and reusable workflow makes GitHub cancel the run as a deadlock. Callers own release serialization.
 - **Do not remove the `release-branch` input** from `purview-release.yml`: all seven consuming repositories still pass it.
 - **Optional workflow inputs are forwarded only when non-empty.** Environment variables outrank `purview-build.json`, so forwarding an unset input as the empty string erases a consumer's configured value. `WorkflowParityTests` enforces this.

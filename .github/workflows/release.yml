@@ -63,11 +63,13 @@ jobs:
             exit 1
           fi
 
+      # --source, not --add-source: the release must be produced by the tool built from this commit,
+      # and --add-source leaves nuget.org able to satisfy the version instead.
       - name: Install packed tool
         run: >-
           dotnet tool install Purview.Build
           --tool-path "$RUNNER_TEMP/purview-build"
-          --add-source artifacts
+          --source artifacts
           --version "${{ steps.version.outputs.version }}"
 
       - name: Evaluate release eligibility
