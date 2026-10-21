@@ -298,10 +298,11 @@ public class ConfigurationPreflightTests
 		var configuration = Configuration([("Release:Mode", "LocalNuGet")]);
 
 		// Act
-		var act = () => ConfigurationPreflight.Validate(configuration, repository.Root, true, NoEnvironment);
+		void Act() => ConfigurationPreflight.Validate(configuration, repository.Root, true, NoEnvironment);
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
+
 		await Assert.That(exception!.Message).Contains("Build:Solution");
 		await Assert.That(exception.Message).Contains("PublishLocalNuGet");
 	}

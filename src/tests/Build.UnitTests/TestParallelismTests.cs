@@ -98,7 +98,8 @@ public class TestParallelismTests
 	[Test]
 	public async Task MaxParallelTestsPerProject_BindsFromConfiguration()
 	{
-		const string json = """
+		const string json = /*lang=json,strict*/
+			"""
 			{ "Build": { "MaxParallelTestsPerProject": 5 } }
 			""";
 
@@ -114,7 +115,8 @@ public class TestParallelismTests
 	[Test]
 	public async Task MaxTestParallelism_GivenAConfiguredValue_BindsFromConfiguration()
 	{
-		const string json = """
+		const string json = /*lang=json,strict*/
+			"""
 			{ "Build": { "MaxTestParallelism": 3 } }
 			""";
 
@@ -134,7 +136,8 @@ public class TestParallelismTests
 	[Test]
 	public async Task MaxTestParallelism_GivenAnEnvironmentVariable_OutranksJson()
 	{
-		const string json = """
+		const string json = /*lang=json,strict*/
+			"""
 			{ "Build": { "MaxTestParallelism": 3 } }
 			""";
 

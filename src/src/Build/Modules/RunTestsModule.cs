@@ -156,6 +156,7 @@ public sealed class RunTestsModule(IOptions<BuildSettings> settings) : Module<Co
 		if (buildSettings.MaxParallelTestsPerProject < 0)
 			return 0;
 
+		// Three-quarters of the core count is a safe default for tests that spawn processes, and at least 1 so that a single-core machine can run tests.
 		return Math.Max(1, Environment.ProcessorCount * 3 / 4);
 	}
 
