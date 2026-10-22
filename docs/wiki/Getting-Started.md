@@ -92,6 +92,23 @@ jobs:
 
 The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org; pass an exact version to pin the build.
 
+## GitHub Packages
+
+Restoring from the organisation's GitHub Packages feed is **automatic**: the shared action and both
+reusable workflows register it (authenticated with `GITHUB_TOKEN`) before the repository's first
+restore, so nothing in the repository needs to change.
+
+Publishing to it is **opt-in**, directly from the repository:
+
+1. Add `permissions: { contents: write, packages: write }` to `.github/workflows/release.yml`
+   (a reusable workflow cannot elevate its caller).
+2. Set the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES=true`.
+
+The next eligible release then pushes the same packages to NuGet.org and GitHub Packages. No
+`purview-build.json`, project file, or `nuget.config` change. Package access for downstream
+repositories, retention, and failure semantics are documented in
+[Release Flow](Release-Flow.md#github-packages).
+
 ## Local use
 
 ```shell

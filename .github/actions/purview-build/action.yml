@@ -2,9 +2,11 @@ name: Purview Build
 
 description: >-
   Installs the Purview.Build dotnet tool from nuget.org (pinned via `build-version`, or the
-  latest stable when omitted) and runs it against the repository.
+  latest stable when omitted), registers nuget.org and the organisation GitHub Packages feed for the
+  rest of the job, and runs the tool against the repository.
   Configuration flows through job environment variables (Build__*, Release__*, NuGet__*,
   PublishLocalNuGet__*) and secrets (NUGET_APIKEY, GITHUB_TOKEN, LOCAL_NUGET_FEED_PATH).
+  Publishing to GitHub Packages is opt-in per repository; consuming from it is automatic.
 
 inputs:
   build-version:
@@ -21,6 +23,13 @@ inputs:
       Explicit purview-build.json location (PURVIEW_BUILD_CONFIG). When omitted, the tool uses its
       documented probe order starting at the repository root.
     required: false
+  packages-read-token:
+    description: >-
+      Optional classic PAT with read:packages used to read the organisation GitHub Packages feed.
+      Defaults to the workflow token. Supply an organisation-level token when repositories should read
+      packages without per-package "Manage Actions access" grants.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -40,6 +49,20 @@ runs:
           VERSION_ARGS="--version ${{ inputs.build-version }}"
         fi
         dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
+
+    # Same implementation the reusable workflows use. Registered after the tool install so the
+    # bootstrap resolves Purview.Build from exactly the sources it always has.
+    # A composite action has no post-step, so this configuration lasts for the rest of the job; the
+    # runner is discarded on hosted agents, and the workflows add an explicit cleanup step.
+    # Fork pull requests never receive organisation secrets, so registering a private feed there
+    # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
+    - name: Configure NuGet sources
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+      uses: purview-dev/build/.github/actions/nuget-sources@main
+      with:
+        namespace: ${{ github.repository_owner }}
+        token: ${{ inputs.packages-read-token || github.token }}
+        source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
 
     - name: Run shared build
       shell: bash

@@ -64,6 +64,11 @@ on:
       # under `secrets: inherit`; declaring it makes the contract explicit either way.
       NUGET__APIKEY:
         required: false
+      # Optional organisation-level classic PAT with read:packages. When present, every repository
+      # can read every package without per-package "Manage Actions access" grants; otherwise the
+      # job token is used.
+      PURVIEW_PACKAGES_READ_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -122,6 +127,19 @@ jobs:
           fi
           dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
+      # Registered after the tool install on purpose: the bootstrap keeps resolving Purview.Build from
+      # exactly the sources it always has, and only the repository's own restores see the new feed.
+      # Credentials are resolved from %GITHUB_TOKEN% at restore time, so nothing secret is written.
+      # Fork pull requests never receive organisation secrets, so registering a private feed there
+      # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
+      - name: Configure NuGet sources
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          namespace: ${{ github.repository_owner }}
+          token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
       - name: Run shared build
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -148,3 +166,11 @@ jobs:
             export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
           fi
           "${{ runner.temp }}/purview-build/purview-build"
+
+      # A composite action cannot declare a post-step, so cleanup belongs to the workflow. Hosted
+      # runners discard the user-level configuration with the VM; self-hosted runners do not.
+      - name: Remove temporary NuGet sources
+        if: always()
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          mode: remove

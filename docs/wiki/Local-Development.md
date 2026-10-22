@@ -134,8 +134,9 @@ LOCAL_NUGET_FEED_PATH=/tmp/purview-local-feed ./.tools/dogfood/purview-build --R
 
 The rehearsal exercises Clean → Version → ReportEligibility → Restore → Build → Test → Lint → Pack →
 ValidatePack → local publish, and provably does **not** create a tag, create a GitHub release, or
-touch a remote feed: `PublishNuGetModule` and `CreateGitHubReleaseModule` both report `Skipped`, even
-when `NUGET_APIKEY` and `GITHUB_TOKEN` are present in the environment.
+touch a remote feed: `PublishNuGetModule`, `PublishGitHubPackagesModule` (GitHub Packages is opt-in and
+off by default) and `CreateGitHubReleaseModule` all report `Skipped`, even when `NUGET_APIKEY` and
+`GITHUB_TOKEN` are present in the environment.
 
 For a dry run against the real publication path instead:
 
@@ -143,7 +144,9 @@ For a dry run against the real publication path instead:
 ./.tools/dogfood/purview-build --Release:Mode=NuGet --Release:DryRun=true
 ```
 
-Both publish steps then log `Would have …` and perform no action.
+Both publish steps then log `Would have …` and perform no action. To rehearse the dual publication as
+well, add `--NuGet:GitHubPackages:Enabled=true`; the extra module logs its intended push and still
+performs none.
 
 ## Local NuGet publishing
 

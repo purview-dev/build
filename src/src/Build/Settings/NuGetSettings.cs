@@ -29,6 +29,12 @@ public sealed record NuGetSettings
 	/// </summary>
 	public bool TrustedPublishing { get; init; }
 
+	/// <summary>
+	/// The optional GitHub Packages destination. Disabled unless a repository opts in, so existing
+	/// configurations publish exactly where they did before.
+	/// </summary>
+	public GitHubPackagesSettings GitHubPackages { get; init; } = new();
+
 	public string? GetNuGetAPIKey(Func<string, string?>? readEnvironment = null) =>
 		!string.IsNullOrWhiteSpace(APIKey) ? APIKey
 		: !string.IsNullOrWhiteSpace(EnvAPIKey) ? EnvAPIKey

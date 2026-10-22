@@ -148,6 +148,22 @@ Pushes every `*.nupkg` with `--skip-duplicate`, to the channel's `FeedUrl` when 
 declares one and `NuGet:FeedUrl` otherwise. With `TrustedPublishing`, pushes without an API key.
 With `Release:DryRun`, logs the push and performs none.
 
+## GitHub Packages
+
+Category `Release`. Depends on `Pack`, `ValidatePack`, `RunTests` — **not** on `PublishNuGet`, so the
+two registries are pushed independently after validation. *Skipped when* `ProjectType` is `Web`, the
+resolved `Release:Publish` is false, `NuGet:GitHubPackages:Enabled` is false, or the selected channel's
+feed is already the GitHub Packages registry.
+
+Pushes the same `*.nupkg` files `PublishNuGet` pushes (packing happens once) to
+`https://nuget.pkg.github.com/{owner}/index.json` with `--skip-duplicate` and `--no-symbols`. The
+channel's `.snupkg` stays on NuGet.org: GitHub Packages has no symbol server. Failures are reported per
+package and name the authentication remedy (`packages: write` and package Actions access). With
+`Release:DryRun`, logs the push and performs none.
+
+`CreateGitHubRelease` depends on both publish modules, so a failure in either leaves the version
+untagged — a rerun then completes only the missing registry.
+
 ## PublishLocalNuGet
 
 Category **`Build`** — it never reaches a remote feed. Depends on `Pack` and `ValidatePack`.
@@ -161,8 +177,8 @@ the packages into the feed, and optionally clears the NuGet caches and shuts dow
 
 ## CreateGitHubRelease
 
-Category `Release`. Depends on `PublishNuGet`, `ValidatePack`, `Version`. *Skipped unless* the
-resolved `Release:GitHubRelease` is true.
+Category `Release`. Depends on `PublishNuGet`, `PublishGitHubPackages`, `ValidatePack`, `Version`.
+*Skipped unless* the resolved `Release:GitHubRelease` is true.
 
 With a real (non-dry-run) release requested, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` are required
 before any module runs; a missing one fails the run rather than silently skipping the release.

@@ -12,8 +12,13 @@ Command line > environment variables > `purview-build.json` > baked-in defaults.
 | --- | --- | --- |
 | `NUGET_APIKEY` | NuGet push | `NuGet__NUGET_APIKEY` (binds `EnvAPIKey`); also read directly from process env `NUGET_APIKEY`/`NUGET_API_KEY` |
 | `NuGet__APIKey` | NuGet push | `APIKey`. Configuration keys are case-insensitive, so the historical `NUGET__APIKEY` secret name binds here too |
-| `GITHUB_TOKEN` | GitHub release creation | `GitHub__GITHUB_TOKEN` (binds `EnvAccessToken`); also read directly from process env `GITHUB_TOKEN` |
+| `GITHUB_TOKEN` | GitHub release creation; GitHub Packages push | `GitHub__GITHUB_TOKEN` (binds `EnvAccessToken`); also read directly from process env `GITHUB_TOKEN` |
 | `LOCAL_NUGET_FEED_PATH` | Local NuGet publishing | `PublishLocalNuGet__LOCAL_NUGET_FEED_PATH` (binds `EnvLocalFeedPath`); also read directly from process env `LOCAL_NUGET_FEED_PATH` |
+| `PURVIEW_PACKAGES_READ_TOKEN` | Restoring from GitHub Packages across repositories | Optional organisation secret; a classic PAT with `read:packages`. Prefer it over per-package Actions-access grants. Never used for publishing. |
+
+GitHub Packages uses the same `GITHUB_TOKEN`, not a separate PAT. The token needs `packages: write`
+to publish and `packages: read` to restore. The shared source configuration stores only the
+`%GITHUB_TOKEN%` macro in the user-level NuGet configuration, so no token is written to disk.
 
 The config binder does not map plain `NUGET_APIKEY`/`GITHUB_TOKEN`/`LOCAL_NUGET_FEED_PATH` process env vars under their settings sections, so the settings classes fall back to reading the process environment directly.
 
@@ -25,8 +30,9 @@ Credentials and paths are checked by the startup preflight, before the pipeline 
 | --- | --- | --- |
 | `LOCAL_NUGET_FEED_PATH` (or `PublishLocalNuGet:LocalFeedPath`) | `Release:Mode=LocalNuGet`, running locally | Set an absolute feed path |
 | `NUGET_APIKEY` / `NUGET_API_KEY` (or `NuGet:APIKey`) | `Release:Publish` is enabled and `NuGet:TrustedPublishing` is false | Provide the key, or opt into Trusted Publishing |
-| `GITHUB_TOKEN` | a real (non-dry-run) GitHub release is requested | Provide a token that can create releases |
+| `GITHUB_TOKEN` | a real (non-dry-run) GitHub release is requested, or `NuGet:GitHubPackages:Enabled=true` and publication is requested | Provide a token that can create releases / write packages |
 | `GITHUB_REPOSITORY_ID` | a real (non-dry-run) GitHub release is requested | Supplied automatically by GitHub Actions; set it for a local run |
+| `NuGet:GitHubPackages:FeedUrl` | `NuGet:GitHubPackages:Enabled=true` and publication is requested | Must be an absolute `https` URL. Leave it unset: it derives from `GitHubPackages:Owner`, `GITHUB_REPOSITORY_OWNER`, then `purview-dev` |
 
 `Release:DryRun=true` waives the remote credentials. `Release:Mode=NuGet` in a workflow therefore fails rather than silently skipping publication when neither a key nor Trusted Publishing is configured.
 
@@ -46,6 +52,10 @@ This is enforced by a test (`WorkflowParityTests`), which asserts that every `Se
 | `PURVIEW_BUILD_USER_CONFIG` | Set to `1` (or `true`) to also read machine-local user configuration. Ignored when not running locally. |
 | `PURVIEW_BUILD_STACKTRACE` | Set to `1` (or `true`) to include stack traces in failure reports. Unset, a failing run prints only the failing module and that module's output, then exits with code 1. |
 | `MODULAR_PIPELINES_DIRECTORY` | The directory containing the tool's shipped `appsettings.json`. Unrelated to `purview-build.json` discovery. |
+| `PURVIEW_PUBLISH_GITHUB_PACKAGES` | Repository Actions **variable**, read only by the release workflows: `true` adds GitHub Packages as a publication destination. Absent or `false` means NuGet.org only. |
+| `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` | Repository Actions variable read by the release workflows: the newest N versions of each package are always kept by the mirror cleanup (default `1`; `0` removes the floor). |
+| `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS` | Repository Actions variable read by the release workflows: how long a mirrored version survives after publication (default `24`; `1` for an hourly window; `0` prunes by count only). |
+| `PURVIEW_NUGET_SOURCE_MAPPING` | Repository Actions variable read by the source setup: semicolon-separated package ID patterns that must resolve only from GitHub Packages. Empty keeps both sources available. |
 | `GITHUB_REF` | Read by the eligibility rules as the evaluated ref, unless `Release:Context:Ref` overrides it. |
 
 Pipeline verbosity is configured with `Build__LogLevel` (default `Information`, which reports each module's command output and progress); set `Build__LogLevel=Warning` for quiet CI logs.

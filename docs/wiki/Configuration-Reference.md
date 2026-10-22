@@ -80,6 +80,7 @@ Once the configuration chain is composed and bound — and before the pipeline i
 | `Build:RunLint=true`, `Build:ProjectType=DotNet`, and `Build:CSharpierPath` is set | the path resolves to an existing file | Lint runs the vendored assembly instead of the manifest tool |
 | `Release:Mode=LocalNuGet`, running locally, `Build:ProjectType` not `Web` | `PublishLocalNuGet:LocalFeedPath` or `LOCAL_NUGET_FEED_PATH`, absolute | The local publish happens after pack, so a late failure wastes the whole build |
 | `Release:Publish` resolves true, `Build:ProjectType` not `Web`, `Release:DryRun=false` | a non-empty feed (`Release:Channels:<channel>:FeedUrl` or `NuGet:FeedUrl`), and either a NuGet API key or `NuGet:TrustedPublishing=true` | The push cannot succeed without them |
+| `NuGet:GitHubPackages:Enabled=true`, `Release:Publish` resolves true, `Build:ProjectType` not `Web`, `Release:DryRun=false`, and the channel is not already the GitHub Packages feed | `GITHUB_TOKEN`, and an absolute `https` feed (derived from the owner unless `FeedUrl` is set) | The additional push cannot authenticate without them |
 | `Release:GitHubRelease` resolves true, `Release:DryRun=false` | `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` | The release cannot be created without them |
 
 `Release:DryRun=true` waives the remote credential requirements; the local feed path is still required because `LocalNuGet` is a local operation. `release-explain`, `--help`, and `--version` never run these checks — they do not build a pipeline.
@@ -187,6 +188,30 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | `TrustedPublishing` | `false` | Push without an API key (NuGet Trusted Publishing / OIDC) |
 | `APIKey` | unset | Secret; use `NUGET_APIKEY` or `NuGet__APIKey` (configuration keys are case-insensitive, so `NUGET__APIKEY` also binds here) |
 | `EnvAPIKey` | unset | Binds `NuGet__NUGET_APIKEY`; also falls back to process env `NUGET_APIKEY`/`NUGET_API_KEY` |
+
+### `NuGet:GitHubPackages`
+
+An optional **additional** destination: the same package files are also pushed to the organisation's
+GitHub Packages feed. It never replaces NuGet.org, and it does nothing unless a repository opts in.
+The shared release workflow maps the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES` onto
+`NuGet__GitHubPackages__Enabled`, so a consuming repository changes no file to use it. See
+[GitHub Packages](Release-Flow.md#github-packages) for the opt-in steps and access setup.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Enabled` | `false` | Push to GitHub Packages as well as NuGet.org. The workflow sets it from `PURVIEW_PUBLISH_GITHUB_PACKAGES` |
+| `Owner` | unset | Feed owner; falls back to `GITHUB_REPOSITORY_OWNER`, then `purview-dev` |
+| `FeedUrl` | unset | Explicit feed URL; falls back to `https://nuget.pkg.github.com/{Owner}/index.json` |
+| `Username` | unset | Basic-auth username sent with the token; falls back to `GITHUB_ACTOR`, then the owner |
+
+The token is `GITHUB_TOKEN` (shared with GitHub release creation); no separate GitHub Packages secret
+exists. `Enabled` is a plain setting, so a local run can opt in explicitly with
+`--NuGet:GitHubPackages:Enabled=true` and a token. It is still gated by `Release:Publish`: a PR or a
+`Release:Mode=None` run never publishes anywhere. A channel whose own `FeedUrl` is the GitHub Packages
+feed is left to `PublishNuGetModule`; the additional module skips so the artifact is not pushed twice.
+
+Only `.nupkg` files go to GitHub Packages. The registry has no symbol server, so the `.snupkg` remains
+a NuGet.org-only artifact.
 
 ## `PublishLocalNuGet`
 

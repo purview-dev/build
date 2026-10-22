@@ -81,6 +81,25 @@ public class ConfigSchemaTests
 	}
 
 	[Test]
+	public async Task Schema_DescribesTheGitHubPackagesDestination()
+	{
+		// Arrange
+		var nuget = Section(ConfigSchemaGenerator.Build(ShippedDefaults()), "NuGet");
+
+		// Act
+		var destination = nuget["properties"]!["GitHubPackages"]!.AsObject();
+		var properties = destination["properties"]!.AsObject();
+
+		// Assert
+		await Assert
+			.That(properties["Enabled"]!["default"]!.GetValue<bool>())
+			.IsFalse()
+			.Because("a repository that configures nothing must keep publishing to NuGet.org only.");
+		await Assert.That(properties.ContainsKey("Owner")).IsTrue();
+		await Assert.That(properties.ContainsKey("FeedUrl")).IsTrue();
+	}
+
+	[Test]
 	public async Task Validate_GivenTheRepositoryConfiguration_Succeeds(CancellationToken cancellationToken)
 	{
 		var content = await File.ReadAllTextAsync(

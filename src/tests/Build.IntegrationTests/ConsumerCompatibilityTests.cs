@@ -201,6 +201,54 @@ public class ConsumerCompatibilityTests
 	}
 
 	[Test]
+	[MethodDataSource(nameof(Shapes))]
+	public async Task GitHubPackages_GivenConsumerShape_IsDisabledByDefault(ConsumerShape shape)
+	{
+		ArgumentNullException.ThrowIfNull(shape);
+
+		// Arrange
+		using var fixture = GitFixture.Create(shape.Version, shape.Branch, configJson: shape.Config);
+		var configuration = BuildConfiguration(fixture, ("Release__Mode", "NuGet"));
+
+		// Act
+		var nuget = configuration.GetSection(NuGetSettings.SectionName).Get<NuGetSettings>()!;
+
+		// Assert
+		await Assert.That(nuget.GitHubPackages.Enabled).IsFalse();
+		await Assert.That(nuget.FeedUrl).IsEqualTo("https://api.nuget.org/v3/index.json");
+	}
+
+	[Test]
+	[MethodDataSource(nameof(Shapes))]
+	public async Task GitHubPackages_GivenOptIn_AddsADestinationAndLeavesNuGetOrgAlone(ConsumerShape shape)
+	{
+		ArgumentNullException.ThrowIfNull(shape);
+
+		// Arrange
+		// The repository variable is the only opt-in, and it must not move the existing publication.
+		using var fixture = GitFixture.Create(shape.Version, shape.Branch, configJson: shape.Config);
+		var configuration = BuildConfiguration(
+			fixture,
+			("Release__Mode", "NuGet"),
+			("NuGet__GitHubPackages__Enabled", "true"),
+			("NuGet__GitHubPackages__Owner", "purview-dev")
+		);
+
+		// Act
+		var nuget = configuration.GetSection(NuGetSettings.SectionName).Get<NuGetSettings>()!;
+		var release = configuration.GetSection(ReleaseSettings.SectionName).Get<ReleaseSettings>()!;
+
+		// Assert
+		await Assert.That(nuget.GitHubPackages.Enabled).IsTrue();
+		await Assert.That(release.ShouldPublish()).IsTrue();
+		await Assert.That(release.ResolveChannel().FeedUrl).IsNull();
+		await Assert
+			.That(nuget.FeedUrl)
+			.IsEqualTo("https://api.nuget.org/v3/index.json")
+			.Because("enabling the mirror must not move the primary publication.");
+	}
+
+	[Test]
 	public async Task Resolve_GivenConfigMovedToDotConfig_AnchorsPathsIdentically()
 	{
 		// Arrange

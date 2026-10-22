@@ -224,6 +224,36 @@
 					"type": "boolean",
 					"description": "When true, packages are pushed without an API key using NuGet Trusted Publishing (OIDC federation, e.g. via the NuGet/login GitHub Action). No API key is required.",
 					"default": false
+				},
+				"GitHubPackages": {
+					"type": "object",
+					"properties": {
+						"Enabled": {
+							"type": "boolean",
+							"description": "Whether an eligible release also publishes to GitHub Packages. Defaults to false: a repository that configures nothing continues to publish to NuGet.org only.",
+							"default": false
+						},
+						"Owner": {
+							"type": "string",
+							"description": "Feed owner (organization or user). Falls back to GITHUB_REPOSITORY_OWNER, then DefaultOwner."
+						},
+						"FeedUrl": {
+							"type": "string",
+							"description": "Explicit feed URL, for a namespace that is not the one the workflow runs under. Falls back to https://nuget.pkg.github.com/{owner}/index.json."
+						},
+						"Username": {
+							"type": "string",
+							"description": "Basic-auth username for the feed. Falls back to GITHUB_ACTOR, then the owner."
+						}
+					},
+					"additionalProperties": false,
+					"patternProperties": {
+						"^\\$": true
+					},
+					"description": "The optional GitHub Packages destination. Disabled unless a repository opts in, so existing configurations publish exactly where they did before.",
+					"default": {
+						"Enabled": false
+					}
 				}
 			},
 			"additionalProperties": false,

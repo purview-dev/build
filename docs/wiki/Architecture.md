@@ -50,9 +50,9 @@ The pipeline's third-party ASCII logo is disabled (`PipelineOptions.PrintLogo = 
 The pipeline is registered in `BuildPipeline.cs` (`Program.cs` is the CLI boundary: informational options, the version banner, configuration binding, and failure reporting) in this order, with explicit `[DependsOn]` edges defining the graph:
 
 ```text
-CleanArtifactsModule → RestoreModule → BuildModule → RunTestsModule ──┬→ PackModule → ValidatePackModule
-CleanArtifactsModule → RestoreModule → LintModule                     │
-CleanArtifactsModule → VersionModule ─────────────────────────────────┤
+CleanArtifactsModule → RestoreModule → BuildModule → RunTestsModule ──┬→ PackModule → ValidatePackModule ─┬→ PublishNuGetModule ─────────┐
+CleanArtifactsModule → RestoreModule → LintModule                     │                                   └→ PublishGitHubPackagesModule ─┤
+CleanArtifactsModule → VersionModule ─────────────────────────────────┤                                                                    └→ CreateGitHubReleaseModule
                        VersionModule → ReportEligibilityModule        │
                                                                       │
                                   (LintModule and ReportEligibilityModule
@@ -69,10 +69,11 @@ Explicit `[DependsOn]` edges:
 - `PackModule` depends on `RunTestsModule` and `VersionModule`.
 - `ValidatePackModule` depends on `PackModule`.
 - `PublishNuGetModule` depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`.
+- `PublishGitHubPackagesModule` depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. It deliberately does **not** depend on `PublishNuGetModule`: both destinations consume the same packed artifacts and publish independently.
 - `PublishLocalNuGetModule` depends on `PackModule` and `ValidatePackModule`.
-- `CreateGitHubReleaseModule` depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`.
+- `CreateGitHubReleaseModule` depends on `PublishNuGetModule`, `PublishGitHubPackagesModule`, `ValidatePackModule`, and `VersionModule`, so no tag or release exists unless every requested destination accepted the packages.
 
-Module categories are `Build` and `Release`. `PublishNuGetModule` and `CreateGitHubReleaseModule` are `Release`; everything else — including `PublishLocalNuGetModule`, which never reaches a remote feed, and `ReportEligibilityModule` — is `Build`.
+Module categories are `Build` and `Release`. `PublishNuGetModule`, `PublishGitHubPackagesModule`, and `CreateGitHubReleaseModule` are `Release`; everything else — including `PublishLocalNuGetModule`, which never reaches a remote feed, and `ReportEligibilityModule` — is `Build`.
 
 See [Pipeline Modules](Pipeline-Modules.md) for per-module behavior and skip conditions.
 
@@ -92,7 +93,33 @@ dotnet purview-build --Build:TestPatterns=*IntegrationTests.csproj --Build:RunPa
   - `Web` (Bun/JS/TS sites such as the Astro/Starlight purview.dev portal) runs the repository's root `package.json` scripts: `bun install` (restore), `bun run build` (build, after an automatic `data:sync` when one is declared and the command is left at the default), `bun run format:check` + `bun run lint` (lint), and `bun run test` (tests). The Web pack step zips `Build:WebBuildOutput` into `Build:ArtifactsFolder` as `<package-name>-<version>.zip`. Every Web command is overridable via the `Web*` settings.
   - `WebExtension` (JS/Azure DevOps extensions) remains future work.
 - **Testing types**: TUnit on Microsoft.Testing.Platform (default) and xUnit, both configurable via `TestFramework`/`TestFilter`. Web projects run the `WebTestCommand` (default `bun run test`); other non-dotnet runners (Vitest, Playwright, Jest) can be targeted by overriding that command.
-- **Release types**: nuget.org (API key or Trusted Publishing), GitHub Packages internal feed, local NuGet feed, GitHub release (optionally with package/vsix assets), and future Aspire-deploy / Azure DevOps marketplace publishing.
+- **Release types**: nuget.org (API key or Trusted Publishing), GitHub Packages internal feed (additional destination, opt-in per repository; also selectable as a channel's own feed), local NuGet feed, GitHub release (optionally with package/vsix assets), and future Aspire-deploy / Azure DevOps marketplace publishing.
+
+## GitHub Actions surfaces
+
+The shared CI surface is three documents plus two helper actions, all in this repository:
+
+| Surface | Role |
+| --- | --- |
+| `.github/workflows/purview-build.yml` | Reusable PR/build workflow |
+| `.github/workflows/purview-release.yml` | Reusable release workflow (evaluates eligibility, runs the pipeline, prunes the mirror) |
+| `.github/actions/purview-build/action.yml` | Composite action for callers that need surrounding steps |
+| `.github/actions/nuget-sources/` | Registers nuget.org + the organisation GitHub Packages feed in the user-level NuGet configuration, with `%GITHUB_TOKEN%` credentials, and restores it on cleanup |
+| `.github/actions/prune-github-packages/` | Deletes older versions of the repository's packages from the mirror after a successful release |
+
+The source configuration is implemented once and reused by every entry point. It runs after the
+`Purview.Build` tool install (the bootstrap's source list stays exactly as it was) and before the
+repository's first restore. This repository dogfoods both helper actions from `./.github/actions/...`
+in `ci.yml`/`release.yml`; consumers get them from `purview-dev/build/...@main`.
+
+A reusable workflow cannot discover the ref it was invoked at (`uses:` does not accept expressions),
+so the helper actions are referenced at `@main`. A consumer that pins the reusable workflow to an old
+tag therefore still runs the current helper; the helper's inputs are additive, and the version axis
+that matters for the tool itself is the `build-version` input.
+
+Consumption is automatic for every repository using the shared surface. Publication is not: the
+release workflow maps the `PURVIEW_PUBLISH_GITHUB_PACKAGES` repository variable onto
+`NuGet:GitHubPackages:Enabled`, which is `false` when the variable is absent.
 
 ## Release behavior
 

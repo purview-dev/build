@@ -38,25 +38,7 @@ public sealed class PublishNuGetModule(
 	{
 		ModuleProgress.Starting(context, nameof(PublishNuGetModule));
 
-		var artifactsFolder = buildSettings.Value.ArtifactsFolder;
-		if (!Directory.Exists(artifactsFolder))
-		{
-			throw new InvalidOperationException(
-				$"The artifacts folder '{artifactsFolder}' does not exist. "
-					+ "Ensure the pack step ran (Release__Mode must not be None) before publishing."
-			);
-		}
-
-		var packages = Directory
-			.EnumerateFiles(artifactsFolder, "*.nupkg", SearchOption.TopDirectoryOnly)
-			.ToList();
-
-		if (packages.Count == 0)
-		{
-			throw new InvalidOperationException(
-				$"No NuGet packages found in {buildSettings.Value.ArtifactsFolder}."
-			);
-		}
+		var packages = NuGetPackages.Discover(buildSettings.Value.ArtifactsFolder);
 
 		// The channel's feed wins over NuGet:FeedUrl, so a preview channel can target a different
 		// feed without the caller rewriting NuGet:FeedUrl for every run.

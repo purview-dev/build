@@ -1,0 +1,53 @@
+name: Purview NuGet sources
+
+description: >-
+  Registers nuget.org and the organisation GitHub Packages feed in the user-level NuGet configuration
+  for the rest of the job, authenticated with the workflow token, and leaves the repository's
+  committed nuget.config untouched. Use `mode: remove` to restore the user configuration.
+
+inputs:
+  mode:
+    description: "`configure` adds the sources; `remove` restores the user configuration."
+    required: false
+    default: configure
+  token:
+    description: >-
+      Token used as the GitHub Packages password. Defaults to the workflow token; the shared workflows
+      pass an organisation-level read token (a classic PAT with `read:packages`) when one is configured,
+      so every repository can read every package without per-package Actions access grants.
+    required: false
+    default: ${{ github.token }}
+  namespace:
+    description: GitHub Packages namespace (the organisation or user owning the feed).
+    required: false
+    default: ${{ github.repository_owner }}
+  username:
+    description: Basic-auth username sent with the token.
+    required: false
+    default: ${{ github.actor }}
+  source-mapping:
+    description: >-
+      Optional semicolon-separated package ID patterns (for example `Purview.ValueObjects`) that must
+      resolve only from GitHub Packages. Empty leaves NuGet's default: both sources, highest version wins.
+    required: false
+    default: ""
+  clear-http-cache:
+    description: Clear NuGet's HTTP cache after configuring, so a just-published version is visible.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Configure NuGet sources
+      shell: bash
+      env:
+        # Lets the script tell the default workflow token apart from an organisation-level read token.
+        GITHUB_TOKEN: ${{ github.token }}
+        PURVIEW_NUGET_MODE: ${{ inputs.mode }}
+        PURVIEW_NUGET_TOKEN: ${{ inputs.token }}
+        PURVIEW_NUGET_NAMESPACE: ${{ inputs.namespace }}
+        PURVIEW_NUGET_USERNAME: ${{ inputs.username }}
+        PURVIEW_NUGET_SOURCE_MAPPING: ${{ inputs.source-mapping }}
+        PURVIEW_NUGET_CLEAR_HTTP_CACHE: ${{ inputs.clear-http-cache }}
+      run: bash "$GITHUB_ACTION_PATH/nuget-sources.sh"
