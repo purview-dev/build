@@ -47,6 +47,7 @@ static class LocalNuGetPublishing
 		if (mode != ReleaseMode.LocalNuGet)
 			return $"Local NuGet feed publishing is disabled. Release:Mode is {mode}; set it to LocalNuGet to enable it.";
 
+		// All three clauses passed, so the run will publish to the local feed.
 		return null;
 	}
 

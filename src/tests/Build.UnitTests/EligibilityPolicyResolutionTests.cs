@@ -157,10 +157,10 @@ public class EligibilityPolicyResolutionTests
 		// Arrange
 
 		// Act
-		static ResolvedPolicy act() => EligibilityPolicies.Resolve(EligibilitySettings.Default, "Nonsense");
+		static ResolvedPolicy Act() => EligibilityPolicies.Resolve(EligibilitySettings.Default, "Nonsense");
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("Nonsense");
 		await Assert.That(exception!.Message).Contains(EligibilityPolicies.ReleaseOnMainName);
 	}
@@ -173,10 +173,10 @@ public class EligibilityPolicyResolutionTests
 		EligibilityPolicySettings right = new() { Inherits = "Left", Rules = ["+REL007"] };
 
 		// Act
-		ResolvedPolicy act() => Resolve("Left", ("Left", left), ("Right", right));
+		ResolvedPolicy Act() => Resolve("Left", ("Left", left), ("Right", right));
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("inherits from itself");
 	}
 
@@ -192,10 +192,10 @@ public class EligibilityPolicyResolutionTests
 		};
 
 		// Act
-		ResolvedPolicy act() => Resolve("Mixed", ("Mixed", mixed));
+		ResolvedPolicy Act() => Resolve("Mixed", ("Mixed", mixed));
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("mixes absolute rule entries");
 	}
 
@@ -206,10 +206,10 @@ public class EligibilityPolicyResolutionTests
 		EligibilityPolicySettings bogus = new() { Rules = ["REL999"] };
 
 		// Act
-		ResolvedPolicy act() => Resolve("Bogus", ("Bogus", bogus));
+		ResolvedPolicy Act() => Resolve("Bogus", ("Bogus", bogus));
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains("REL999");
 		await Assert.That(exception!.Message).Contains("REL001");
 	}
@@ -239,10 +239,10 @@ public class EligibilityPolicyResolutionTests
 		EligibilitySettings settings = new() { Policy = "" };
 
 		// Act
-		ResolvedPolicy act() => EligibilityPolicies.Resolve(settings, settings.Policy);
+		ResolvedPolicy Act() => EligibilityPolicies.Resolve(settings, settings.Policy);
 
 		// Assert
-		var exception = await Assert.That(act).Throws<InvalidOperationException>();
+		var exception = await Assert.That(Act).Throws<InvalidOperationException>();
 		await Assert.That(exception!.Message).Contains(EligibilityPolicies.ReleaseOnMainName);
 	}
 

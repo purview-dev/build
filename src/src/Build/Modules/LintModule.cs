@@ -76,7 +76,7 @@ public sealed class LintModule(IOptions<BuildSettings> settings) : Module<Comman
 		);
 	}
 
-	async Task<CommandResult?> RunCSharpierAsync(
+	static async Task<CommandResult?> RunCSharpierAsync(
 		IModuleContext context,
 		string repositoryRoot,
 		string cSharpierPath,
