@@ -240,6 +240,23 @@ public class GitHubPackagesPublishingTests
 	}
 
 	[Test]
+	public async Task PushOptions_ClearTheNuGetOrgKey()
+	{
+		// Arrange
+		// Consumer release workflows export the NuGet.org key as NUGET_API_KEY. NuGet 7.6+ sends that
+		// as the push API key as well as the source credentials, and GitHub Packages rejects the
+		// combination. The child must not inherit it.
+		var options = GitHubPackagesPublishing.CreatePushExecutionOptions();
+
+		// Act
+		var key = options.EnvironmentVariables?["NUGET_API_KEY"];
+
+		// Assert
+		await Assert.That(options.ThrowOnNonZeroExitCode).IsFalse();
+		await Assert.That(key).IsEqualTo(string.Empty);
+	}
+
+	[Test]
 	public async Task Discover_GivenAMissingArtifactsFolder_FailsWithThePackRemediation()
 	{
 		// Arrange
