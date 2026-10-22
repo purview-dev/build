@@ -77,8 +77,11 @@ if grep -Ril --include='nuget.config' --include='NuGet.Config' '<clear' . 2>/dev
 	echo "::warning::A repository nuget.config contains <clear />, which hides the user-level GitHub Packages source. Add the source to that file or remove <clear />."
 fi
 
-if ! dotnet nuget list source --configfile "$USER_CONFIG" --format detailed | grep -qi "$NUGET_ORG_URL"; then
-	dotnet nuget add source "$NUGET_ORG_URL" --name nuget.org --configfile "$USER_CONFIG"
+if ! dotnet nuget list source --configfile "$USER_CONFIG" --format detailed |
+	grep -qE '^[[:space:]]*[0-9]+\.  nuget\.org([[:space:]]|$)'; then
+	# A stable key for the mapping below. If the same URL is already present under another name this
+	# adds a harmless duplicate; the key is what NuGet mapping references.
+	dotnet nuget add source "$NUGET_ORG_URL" --name nuget.org --configfile "$USER_CONFIG" 2>/dev/null || true
 fi
 
 # Remove first so a rerun (or a self-hosted runner left behind by a cancelled job) cannot fail on a
@@ -108,58 +111,58 @@ dotnet nuget add source "$FEED_URL" \
 	--store-password-in-clear-text \
 	--configfile "$USER_CONFIG"
 
-if [ -n "$MAPPING" ]; then
-	if grep -q 'packageSourceMapping' "$USER_CONFIG"; then
-		echo "::warning::The user-level NuGet configuration already has package source mapping; leaving it unchanged."
+# Package source mapping is always written. Central package management (NU1507) fails or warns
+# whenever more than one source is configured without it, and every Purview repository uses CPM.
+#
+# With no explicit patterns, `*` maps to BOTH sources. That is not a priority mechanism: it only makes
+# the two-source configuration legal, and NuGet still resolves the highest matching version across
+# both. When PURVIEW_NUGET_SOURCE_MAPPING lists patterns, those are pinned to GitHub Packages and
+# everything else to nuget.org.
+MAPPING_FILE="$(mktemp)"
+{
+	echo '  <packageSourceMapping>'
+	echo "    <packageSource key=\"$SOURCE_NAME\">"
+	if [ -n "$MAPPING" ]; then
+		printf '%s\n' "$MAPPING" | tr ';,' '\n' | while IFS= read -r pattern; do
+			pattern="$(printf '%s' "$pattern" | tr -d '[:space:]')"
+			if [ -z "$pattern" ]; then
+				continue
+			fi
+			echo "      <package pattern=\"$pattern\" />"
+		done
 	else
-		NUGET_ORG_KEY="$(
-			dotnet nuget list source --configfile "$USER_CONFIG" --format detailed | awk -v url="$NUGET_ORG_URL" '
-				/^[[:space:]]*[0-9]+\./ {
-					name = $0
-					sub(/^[[:space:]]*[0-9]+\.[[:space:]]*/, "", name)
-					sub(/[[:space:]]*\[.*$/, "", name)
-					sub(/[[:space:]]+$/, "", name)
-					next
-				}
-				index($0, url) { print name; exit }
-			'
-		)"
-
-		if [ -z "$NUGET_ORG_KEY" ]; then
-			echo "::warning::Could not identify the nuget.org source key; package source mapping was not applied."
-		else
-			MAPPING_FILE="$(mktemp)"
-			{
-				echo '  <packageSourceMapping>'
-				echo "    <packageSource key=\"$SOURCE_NAME\">"
-				printf '%s\n' "$MAPPING" | tr ';,' '\n' | while IFS= read -r pattern; do
-					pattern="$(printf '%s' "$pattern" | tr -d '[:space:]')"
-					if [ -z "$pattern" ]; then
-						continue
-					fi
-					echo "      <package pattern=\"$pattern\" />"
-				done
-				echo '    </packageSource>'
-				echo "    <packageSource key=\"$NUGET_ORG_KEY\">"
-				echo '      <package pattern="*" />'
-				echo '    </packageSource>'
-				echo '  </packageSourceMapping>'
-			} >"$MAPPING_FILE"
-
-			awk -v mapping_file="$MAPPING_FILE" '
-				/<\/configuration>/ && !inserted {
-					while ((getline line < mapping_file) > 0) print line
-					close(mapping_file)
-					inserted = 1
-				}
-				{ print }
-			' "$USER_CONFIG" >"$USER_CONFIG.tmp"
-			mv "$USER_CONFIG.tmp" "$USER_CONFIG"
-			rm -f "$MAPPING_FILE"
-
-			echo "Applied package source mapping: mapped patterns resolve only from '$SOURCE_NAME'; everything else from '$NUGET_ORG_KEY'."
-		fi
+		echo '      <package pattern="*" />'
 	fi
+	echo '    </packageSource>'
+	echo '    <packageSource key="nuget.org">'
+	echo '      <package pattern="*" />'
+	echo '    </packageSource>'
+	echo '  </packageSourceMapping>'
+} >"$MAPPING_FILE"
+
+# Replace any mapping inherited from the user configuration. The backup taken above restores the
+# original on cleanup, so a developer's own mapping is not lost on a self-hosted runner.
+awk '
+	/<packageSourceMapping>/ { skip = 1 }
+	skip { if (/<\/packageSourceMapping>/) { skip = 0 } ; next }
+	{ print }
+' "$USER_CONFIG" >"$USER_CONFIG.tmp"
+
+awk -v mapping_file="$MAPPING_FILE" '
+	/<\/configuration>/ && !inserted {
+		while ((getline line < mapping_file) > 0) print line
+		close(mapping_file)
+		inserted = 1
+	}
+	{ print }
+' "$USER_CONFIG.tmp" >"$USER_CONFIG.tmp2"
+mv "$USER_CONFIG.tmp2" "$USER_CONFIG"
+rm -f "$USER_CONFIG.tmp" "$MAPPING_FILE"
+
+if [ -n "$MAPPING" ]; then
+	echo "Applied package source mapping: explicit patterns resolve only from '$SOURCE_NAME'; everything else from nuget.org."
+else
+	echo "Applied package source mapping: both sources are available for every package (required by central package management)."
 fi
 
 if [ "$CLEAR_HTTP_CACHE" = "true" ] || [ -n "$MAPPING" ]; then
