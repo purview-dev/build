@@ -86,6 +86,10 @@ package, or an undeclared entry in a declared package, is an error. See the
 | `NuGet:FeedUrl` | nuget.org v3 | remote source |
 | `NuGet:TrustedPublishing` | `false` | push without an API key (OIDC federation) |
 | `NuGet:APIKey` / `EnvAPIKey` | unset | secret |
+| `NuGet:GitHubPackages:Enabled` | `false` | also push the same packages to the organisation's GitHub Packages feed. The shared release workflow maps `PURVIEW_PUBLISH_GITHUB_PACKAGES` onto it |
+| `NuGet:GitHubPackages:Owner` | `GITHUB_REPOSITORY_OWNER`, then `purview-dev` | feed owner |
+| `NuGet:GitHubPackages:FeedUrl` | derived | `https://nuget.pkg.github.com/{Owner}/index.json` |
+| `NuGet:GitHubPackages:Username` | `GITHUB_ACTOR`, then the owner | basic-auth username sent with `GITHUB_TOKEN` |
 | `PublishLocalNuGet:LocalFeedPath` | unset | **absolute** local source; a drive-relative path such as `p:foo` is rejected with a remediation message |
 | `PublishLocalNuGet:OverwriteExistingPackages` / `ShutdownDotnetBuilderServer` / `ClearPackageCache` | `true` | local publish behaviour |
 | `GitHub:AccessToken` / `EnvAccessToken` | unset | secret |

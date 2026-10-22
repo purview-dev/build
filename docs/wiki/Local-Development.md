@@ -2,23 +2,35 @@
 
 Local work uses the `just` recipes in the `Justfile` (which delegate to plain `dotnet`/`bun` commands) or the shared pipeline tool directly.
 
-## Tool installation
+## This repository runs its own build
+
+`Purview.Build` is an ordinary .NET local tool in a consuming repository, pinned in
+`.config/dotnet-tools.json` and installed by `dotnet tool restore`. **This repository is the
+exception:** it never resolves `Purview.Build` from a feed, because a released version standing in for
+the local one would run the pipeline without exercising the change being made — and on the release
+path, the previous version would publish the new one.
+
+Every `just pipeline-*` recipe therefore builds the tool from the working tree first:
 
 ```shell
-dotnet new tool-manifest   # only if the repository has no .config/dotnet-tools.json
-dotnet tool install Purview.Build
-dotnet purview-build
+just build-local-tool   # dotnet publish src/src/Build/Build.csproj -c Release -o .tools/local
 ```
 
-`Purview.Build` is an ordinary .NET local tool. The version is pinned in `.config/dotnet-tools.json` and
-`dotnet tool restore` installs it; pass `--version` to pin explicitly.
+The output goes to `.tools/local/` (gitignored) rather than `bin/Release/`, because a pipeline run
+rebuilds the solution underneath itself and would otherwise overwrite the binary it is executing.
+`.config/dotnet-tools.json` pins only CSharpier and `dotnet-inspect`.
+
+`just pipeline-dogfood` is the separate, slower check that the *packaged* tool is installable: it
+packs from source into `artifacts/dogfood`, installs from that folder alone (`--source`, not
+`--add-source`), and runs the result. CI and the release workflow do the same.
 
 ## `just` recipes
 
 | Recipe | Purpose |
 | --- | --- |
 | `just build` | Build `src/Build.slnx` (Debug) |
-| `just test` / `just test-unit` | Run tests with a TUnit tree-node filter (unit filter: `/*/*/*/*[Category=Unit]`) |
+| `just build-local-tool` | Publish the tool from source (Release) to `.tools/local`, which every `pipeline-*` recipe then runs |
+| `just test` / `just test-unit` | `just test` runs every suite, the same set CI runs; `just test-unit` narrows to `/*/*/*/*[Category=Unit]` |
 | `just lint-check` / `just lint-fix` | CSharpier check / format |
 | `just pack` | `dotnet pack` with the current `package.json` version |
 | `just pipeline-pr` | Run the shared tool (restore, build, lint, tests) |
@@ -31,7 +43,8 @@ dotnet purview-build
 | `just lint-yaml` | `actionlint` over the workflow files (skipped with a note when not installed) |
 | `just clean-all` / `just scrub` | Clean build outputs |
 
-`just pipeline-*` runs `dotnet tool restore`, which installs the pinned `Purview.Build` from `.config/dotnet-tools.json`.
+`just pipeline-*` runs `dotnet tool restore` (for CSharpier) and `just build-local-tool`, then runs
+the freshly built `.tools/local/Purview.Build`.
 
 ## Answering "did I break anything?"
 
@@ -121,8 +134,9 @@ LOCAL_NUGET_FEED_PATH=/tmp/purview-local-feed ./.tools/dogfood/purview-build --R
 
 The rehearsal exercises Clean → Version → ReportEligibility → Restore → Build → Test → Lint → Pack →
 ValidatePack → local publish, and provably does **not** create a tag, create a GitHub release, or
-touch a remote feed: `PublishNuGetModule` and `CreateGitHubReleaseModule` both report `Skipped`, even
-when `NUGET_APIKEY` and `GITHUB_TOKEN` are present in the environment.
+touch a remote feed: `PublishNuGetModule`, `PublishGitHubPackagesModule` (GitHub Packages is opt-in and
+off by default) and `CreateGitHubReleaseModule` all report `Skipped`, even when `NUGET_APIKEY` and
+`GITHUB_TOKEN` are present in the environment.
 
 For a dry run against the real publication path instead:
 
@@ -130,7 +144,9 @@ For a dry run against the real publication path instead:
 ./.tools/dogfood/purview-build --Release:Mode=NuGet --Release:DryRun=true
 ```
 
-Both publish steps then log `Would have …` and perform no action.
+Both publish steps then log `Would have …` and perform no action. To rehearse the dual publication as
+well, add `--NuGet:GitHubPackages:Enabled=true`; the extra module logs its intended push and still
+performs none.
 
 ## Local NuGet publishing
 

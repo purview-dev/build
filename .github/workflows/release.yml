@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: write
+  # The self-hosted release dogfoods the dual publication: the variable decides whether the extra
+  # destination is used, and the token must be allowed to write it.
+  packages: write
 
 concurrency:
   group: purview-build-release
@@ -19,6 +22,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Resolved by the package source's %GITHUB_TOKEN% credential during restore and push.
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,6 +36,14 @@ jobs:
           dotnet-version: "10.0.x"
 
       - uses: oven-sh/setup-bun@v2
+
+      # Dogfoods the source configuration from the working tree, before the first restore.
+      - name: Configure NuGet sources
+        uses: ./.github/actions/nuget-sources
+        with:
+          namespace: ${{ github.repository_owner }}
+          token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
 
       # Irreducible: the tool cannot read its own version for `dotnet pack` before it has been
       # packed. Eligibility is NOT decided here — that is the tool's job, below.
@@ -63,11 +77,13 @@ jobs:
             exit 1
           fi
 
+      # --source, not --add-source: the release must be produced by the tool built from this commit,
+      # and --add-source leaves nuget.org able to satisfy the version instead.
       - name: Install packed tool
         run: >-
           dotnet tool install Purview.Build
           --tool-path "$RUNNER_TEMP/purview-build"
-          --add-source artifacts
+          --source artifacts
           --version "${{ steps.version.outputs.version }}"
 
       - name: Evaluate release eligibility
@@ -98,12 +114,33 @@ jobs:
       - name: Run release pipeline (builds, publishes and tags itself)
         if: steps.eligibility.outputs.verdict == 'Release'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           NUGET_APIKEY: ${{ secrets.NUGET__APIKEY }}
           Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
           Release__UploadArtifacts: "true"
           NuGet__FeedUrl: https://api.nuget.org/v3/index.json
-          Build__RunTests: "false"
-          Build__RunLint: "false"
+          # Opt-in only: without the repository variable this release publishes to NuGet.org exactly as
+          # it always has. With it, the same packages also go to the organisation feed.
+          NuGet__GitHubPackages__Enabled: ${{ vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true' }}
+          NuGet__GitHubPackages__Owner: ${{ github.repository_owner }}
+          # The release path publishes to nuget.org and tags the repository, so it is the last place
+          # that should take the build on trust. Tests and lint run here as they do on a PR.
+          Build__RunTests: "true"
+          Build__RunLint: "true"
           Build__ValidatePack: "true"
         run: "$RUNNER_TEMP/purview-build/purview-build"
+
+      # Mirror housekeeping, never a release gate: NuGet.org holds every version.
+      - name: Prune older GitHub Packages versions
+        if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'
+        uses: ./.github/actions/prune-github-packages
+        with:
+          namespace: ${{ github.repository_owner }}
+          keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
+          retention-hours: ${{ vars.PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS || '24' }}
+          version: ${{ steps.version.outputs.version }}
+
+      - name: Remove temporary NuGet sources
+        if: always()
+        uses: ./.github/actions/nuget-sources
+        with:
+          mode: remove

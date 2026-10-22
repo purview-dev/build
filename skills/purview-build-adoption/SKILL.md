@@ -17,7 +17,8 @@ composite action — or runs the tool locally — and configures it with `.confi
 
 A consuming repository needs exactly three things: a `purview-build.json`, a `version` field in the
 root `package.json`, and a workflow that calls one of the entry points below. No copied pipeline
-project, no package-source credentials.
+project, and no package-source credentials: restoring from the organisation's GitHub Packages feed is
+configured automatically by the shared entry points, while publishing to it is opt-in (see below).
 
 ## Two independent version axes
 
@@ -26,7 +27,7 @@ Get this wrong and you run new tool code through old workflow inputs.
 | Axis | What it selects | How |
 | --- | --- | --- |
 | `@ref` on the workflow or action reference | the **workflow/action code** | `@main` for latest, a release tag (`@v0.2.0`) for reproducibility. There is no `@latest`, and the `@ref` is **required** for a cross-repository reference. |
-| the `build-version` input | the installed **tool** | omit it for the latest stable from nuget.org; pin an exact version (`build-version: 0.2.0`) for reproducibility. |
+| the `build-version` input | the installed **tool** | omit it for the latest stable from nuget.org or the organisation mirror (registered first); pin an exact version (`build-version: 0.2.0`) for reproducibility, including one only the mirror has. |
 
 Pin both, or neither. Pinning one and floating the other is the mismatch.
 
@@ -98,6 +99,60 @@ jobs:
 ```
 
 `build-version` is optional here too.
+
+## GitHub Packages
+
+Two different defaults, and the distinction matters:
+
+| | Restoring from the organisation feed | Publishing to it |
+| --- | --- | --- |
+| Default | **automatic** | **off** |
+| Where it is configured | the shared action/workflow | the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES` |
+| Files to change | none | `release.yml` permissions only |
+| Local development | unchanged | unchanged unless you opt in explicitly |
+
+Consumption needs nothing. The shared action and both reusable workflows register
+`https://api.nuget.org/v3/index.json` **and**
+`https://nuget.pkg.github.com/<owner>/index.json` in the runner's user-level NuGet configuration,
+authenticated with `GITHUB_TOKEN` via a `%GITHUB_TOKEN%` macro, before the repository's first restore.
+A package that only exists on NuGet.org keeps restoring: both sources stay enabled.
+
+**If you want every repository to read every package without per-package grants** (Internal does not
+do that on a Team plan), add one organisation secret, `PURVIEW_PACKAGES_READ_TOKEN`, a classic PAT with
+`read:packages`. The shared workflows use it for the feed when present and fall back to `GITHUB_TOKEN`;
+it never publishes. Callers already use `secrets: inherit`; the composite action takes it as
+`packages-read-token`. Visibility is independent: new packages are private, the token reads them, and
+changing a package to Internal is a per-package UI action (no REST endpoint).
+
+Publication is additive — the same packed artifacts go to both feeds. To opt a repository in:
+
+1. In `.github/workflows/release.yml`, grant what the reusable release workflow declares (a reusable
+   workflow cannot elevate its caller):
+
+   ```yaml
+   permissions:
+     contents: write
+     packages: write
+   ```
+
+2. Create the repository variable (Settings → Secrets and variables → Actions → Variables):
+   `PURVIEW_PUBLISH_GITHUB_PACKAGES = true`.
+
+3. Release as usual. No `purview-build.json`, `package.json`, project file or `nuget.config` change.
+
+Then grant consumers read access per package: package page → **Package settings** →
+**Manage Actions access** → **Add repository** (Read). There is no organisation-wide auto-grant for
+NuGet packages; Enterprise-owned organisations may read **Internal** packages automatically. Set the
+variable only after a Purview.Build release containing the feature has shipped — an older tool ignores
+the unknown setting.
+
+Optional repository variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` | `1` | newest versions always kept by the post-release mirror cleanup; `0` removes the floor |
+| `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS` | `24` | how long a mirrored version survives; `1` for an hourly window, `0` for count-only pruning |
+| `PURVIEW_NUGET_SOURCE_MAPPING` | empty | semicolon-separated package patterns pinned **only** to GitHub Packages; mapping itself is always written (`*` to both by default), and setting this also clears the HTTP cache |
 
 ## Locally
 

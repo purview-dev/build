@@ -6,7 +6,7 @@
 - Minor: additive options or modules with backward-compatible defaults.
 - Major: renamed/removed keys, changed defaults with material effects, or a required runtime upgrade.
 
-The reusable workflows and composite action are referenced with an `@ref` suffix (required for cross-repository references), which selects the workflow/action *code*: `@main` always runs the latest code, while a release tag (e.g. `@v0.2.0`) pins it for reproducibility. `build-version` is an independent axis that selects the installed `Purview.Build` *tool*; it defaults to the latest stable release from nuget.org, and consumers that need reproducibility pin an exact version via the `build-version` input (and, for local use, `.config/dotnet-tools.json`). Automated dependency updates should open a pull request, where the consumer's normal build validates the new tool before merge. Keep the previous major supported while migrations are in progress.
+The reusable workflows and composite action are referenced with an `@ref` suffix (required for cross-repository references), which selects the workflow/action *code*: `@main` always runs the latest code, while a release tag (e.g. `@v0.2.0`) pins it for reproducibility. `build-version` is an independent axis that selects the installed `Purview.Build` *tool*; it defaults to the latest stable release from nuget.org or the organisation mirror, which is registered before the tool install, so a pinned version NuGet.org has not indexed yet still resolves. Consumers that need reproducibility pin an exact version via the `build-version` input (and, for local use, `.config/dotnet-tools.json`). Automated dependency updates should open a pull request, where the consumer's normal build validates the new tool before merge. Keep the previous major supported while migrations are in progress.
 
 The version is declared by the `version` field in the repository's root `package.json`. Releasing consists of bumping that field and merging the validated pull request into the release head.
 
@@ -75,25 +75,158 @@ The `release-branch` input is retained for backward compatibility only.
 
 This repository dogfoods the shared tool. CI performs restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself. See [Repository CI/CD](Repository-CI-CD.md).
 
-On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using the `NUGET_APIKEY` secret, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. The tool therefore owns tagging; maintainers must not push release tags manually.
+On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using the `NUGET_APIKEY` secret, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. When this repository's `PURVIEW_PUBLISH_GITHUB_PACKAGES` variable is `true`, the same packages also go to GitHub Packages, and older mirror versions are pruned afterwards. The tool therefore owns tagging; maintainers must not push release tags manually.
 
-## GitHub package visibility
+## GitHub Packages
 
-GitHub creates NuGet packages as private on first publication. To make sure every package is **Internal** (visible to all Purview-Dev members), set both:
+GitHub Packages is a **secondary** NuGet feed. NuGet.org remains the durable archive; the
+organisation feed (`https://nuget.pkg.github.com/purview-dev/index.json`) exists so a downstream
+repository can consume a version before NuGet.org has indexed it, and so the organisation has a
+mirror it controls.
 
-1. **Organization default (prevents future private packages)** — org owner:
-   GitHub → purview-dev → Settings → Packages → **Package Creation** → select **Internal**.
-   New NuGet packages published by organization members then default to Internal.
-2. **Existing packages already published while private** — org owner, per package:
-   `https://github.com/orgs/purview-dev/packages/nuget/package/<name>` → **Package settings** → **Danger Zone** → **Change visibility** → **Internal**.
+### Publishing is opt-in
 
-   Or via the CLI/API for every package on the registry:
+The shared release workflow reads one repository-level Actions variable:
 
-   ```shell
-   gh api --method PATCH "/orgs/purview-dev/packages/nuget/Purview.Build" -f visibility=internal
+```text
+PURVIEW_PUBLISH_GITHUB_PACKAGES=true
+```
+
+| Variable | Existing NuGet release | Result |
+| --- | --- | --- |
+| absent | yes | NuGet.org only |
+| `false` | yes | NuGet.org only |
+| `true` | yes | NuGet.org and GitHub Packages |
+| `true` | no (PR, `Release:Mode=None`) | nothing publishes |
+| `true` | `Release:DryRun=true` | neither registry is pushed; both are logged |
+
+To opt a repository in:
+
+1. Grant the caller's release job the permission the reusable workflow declares. Reusable workflows
+   cannot elevate a caller, so add to the repository's `.github/workflows/release.yml`:
+
+   ```yaml
+   permissions:
+     contents: write
+     packages: write
    ```
 
-   Public packages cannot be made private again; private → internal is safe.
+2. Create the repository variable (Settings → Secrets and variables → Actions → Variables):
+   `PURVIEW_PUBLISH_GITHUB_PACKAGES = true`.
+
+   ```shell
+   gh variable set PURVIEW_PUBLISH_GITHUB_PACKAGES --body true --repo purview-dev/build
+   gh variable set PURVIEW_PUBLISH_GITHUB_PACKAGES --body true --repo purview-dev/build-sdk
+   gh variable set PURVIEW_PUBLISH_GITHUB_PACKAGES --body true --repo purview-dev/zodsharp
+   gh variable set PURVIEW_PUBLISH_GITHUB_PACKAGES --body true --repo purview-dev/value-objects
+   ```
+
+   Those are the expected first adopters, not an allowlist. The variable is the only switch, so any
+   Purview repository opts in the same way without touching the central pipeline. Set it to `false`
+   (or delete it) to stop mirroring; NuGet.org publication is unaffected either way.
+
+3. Release by bumping `package.json` and merging, exactly as before. No configuration file, project
+   file, workflow input, or `nuget.config` changes.
+
+Absent or `false` is the default and reproduces today's behaviour exactly. The PR build workflow never
+reads the variable, and the setting is still gated by the release eligibility decision:
+`Release:Publish` must be true for the module to run. `NuGet:GitHubPackages:Enabled` (the setting the
+workflow maps the variable onto) is the command-line equivalent for a manual run.
+
+An older Purview.Build ignores the unknown setting. Set the variable only after a release containing
+this feature has shipped.
+
+### Consuming is automatic
+
+The shared composite action and both reusable workflows register nuget.org and the organisation feed
+in the runner's **user-level** NuGet configuration (never the repository's `nuget.config`),
+authenticated with `GITHUB_TOKEN` through a `%GITHUB_TOKEN%` credential macro. Both sources stay
+enabled, so a package that is only on NuGet.org keeps restoring, and a version that exists only on
+GitHub Packages is found while NuGet.org catches up. A package source mapping is always written
+(`*` to both sources by default), because central package management raises `NU1507` when more than one
+source is configured without one; it is not a priority mechanism. When NuGet has cached source
+metadata from before a version was published, the cache can hide it until it expires;
+`PURVIEW_NUGET_SOURCE_MAPPING` (comma/semicolon-separated package patterns) pins those patterns to
+GitHub Packages and clears the HTTP cache, at the cost of forbidding fallback for them.
+
+The source is registered **before** `dotnet tool install`, so a `build-version` that exists only on the
+mirror is installed from GitHub Packages, and the HTTP cache is cleared first so a just-published
+version or tool is not hidden by a cached negative result.
+
+No repository opts in to consumption. A repository whose own `nuget.config` contains `<clear />`
+disables lower-priority sources and hides the feed; the setup step warns with that file's path.
+
+### Access and permissions
+
+- Publishing needs `GITHUB_TOKEN` with `packages: write`, which the caller must grant.
+- The publishing repository gets admin permission on the package it creates by inheritance. Do not
+  disable "Inherit access from source repository" in the organisation's default package settings.
+- A repository that restores another repository's package needs read access to it: package page →
+  **Package settings** → **Manage Actions access** → **Add repository** → **Read**. This is per
+  package and must be repeated for each consuming repository. There is no organisation-wide
+  auto-grant for NuGet packages.
+- **Internal visibility does not remove that step on a Team plan.** Internal gives every organisation
+  member read access as a user; GitHub's permissions table extends it to all workflows only for an
+  Enterprise-owned organisation. To avoid per-package grants entirely, provide one organisation secret,
+  `PURVIEW_PACKAGES_READ_TOKEN`: a classic PAT with `read:packages`, owned by an organisation owner. The
+  shared source setup prefers it when present and falls back to `GITHUB_TOKEN`. It is read-only and is
+  never used for publication. Visibility is independent: GitHub creates a package private, and the token
+  reads private packages too.
+
+  ```shell
+  gh secret set PURVIEW_PACKAGES_READ_TOKEN --org purview-dev --visibility all \
+    --body "<classic PAT with read:packages>"
+  ```
+- GitHub Packages has no symbol server: `.snupkg` files go to NuGet.org only.
+- The workflow fails (rather than silently publishing to one registry) when either push fails; the tag
+  and GitHub release are created only after both succeed.
+
+### Partial failures and reruns
+
+The two publish modules run independently after pack validation. If one registry fails, the run fails
+and no tag is created. Because `REL002` keys off the tag rather than feed state, the version is still
+eligible on a rerun; `--skip-duplicate` makes the registry that succeeded a no-op, and the rerun
+completes the missing side. A duplicate version on GitHub Packages is treated as already published,
+not as an error.
+
+### Retention
+
+The mirror exists for build acceleration, not as an archive: it keeps versions published in the last
+**24 hours** so a downstream repository can restore a version before NuGet.org has indexed it. After a
+successful release, the shared workflow deletes versions of the packages linked to the publishing
+repository that fall outside that window. It always keeps:
+
+- the version just released, even if the version listing is out of order;
+- the newest `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` versions (default `1`), so the feed is never
+  emptied by a long gap between releases;
+- every version published within `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS` (default `24`; set it to `1`
+  for an hourly window, the practical minimum for a release job).
+
+`PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS=0` disables the age window and falls back to count-only
+pruning; setting both variables to `0` disables pruning entirely. This is housekeeping on the mirror:
+NuGet.org holds every version, a cleanup failure only warns, and a package the release did not publish
+is skipped. Deleted versions can be restored through the REST API within 30 days if a window proves
+too aggressive.
+
+### Visibility
+
+GitHub creates NuGet packages as **private** on first publication. The organisation's **Package
+Creation** settings control *which visibility types members may use* (`Public`, `Private`,
+`Internal`), not the visibility of a package that gets published — so leaving **Private** checked there
+is harmless, and it often cannot be cleared because the default creation type must remain allowed.
+
+Two facts keep this from being a problem:
+
+- **Workflow access no longer depends on visibility.** Every repository reads the feed with the
+  organisation-level `PURVIEW_PACKAGES_READ_TOKEN`, which can read private packages too.
+- **Internal visibility is for people, not builds.** It makes a package visible to all organisation
+  members in the UI. Change it per package after publication:
+  `https://github.com/orgs/purview-dev/packages/nuget/package/<name>` → **Package settings** →
+  **Danger Zone** → **Change visibility** → **Internal**.
+
+There is **no REST or GraphQL endpoint for package visibility or Actions access**; both are UI-only.
+A `PATCH` against `/orgs/{org}/packages/nuget/{name}` returns 404, so scripts cannot set visibility.
+Public packages cannot be made private again; private → internal is safe.
 
 NuGet versions are immutable; `--skip-duplicate` makes recovery safe if publication succeeded but tagging was interrupted.
 

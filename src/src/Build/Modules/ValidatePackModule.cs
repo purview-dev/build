@@ -59,30 +59,56 @@ public sealed class ValidatePackModule(
 		List<PackValidationResult> results = [with(nupkgFiles.Length + snupkgFiles.Length)];
 		Dictionary<string, PackagePair> packagePairs = [with(StringComparer.OrdinalIgnoreCase)];
 
-		foreach (var package in nupkgFiles)
+		// Each package is validated independently - opening the archive, reading entries and inspecting
+		// assemblies - so this is IO- and CPU-bound work with no ordering requirement between packages.
+		// It ran strictly sequentially, which made validation time scale linearly with package count for
+		// no reason. The bound matches RunTestsModule so a machine is never oversubscribed by either.
+		var maxParallelism =
+			buildSettings.Value.MaxTestParallelism > 0
+				? buildSettings.Value.MaxTestParallelism
+				: Environment.ProcessorCount;
+		ParallelOptions parallelOptions = new()
 		{
-			var result = await ValidateNupkgAsync(
-				package,
-				packValidationSettings.Value,
-				cancellationToken
-			);
-			results.Add(result);
+			MaxDegreeOfParallelism = maxParallelism,
+			CancellationToken = cancellationToken,
+		};
 
-			var pair = GetOrAddPair(packagePairs, result.PackageKey);
-			pair.Nupkg = result;
+		var nupkgResults = new PackValidationResult[nupkgFiles.Length];
+		await Parallel.ForEachAsync(
+			Enumerable.Range(0, nupkgFiles.Length),
+			parallelOptions,
+			async (index, token) =>
+				nupkgResults[index] = await ValidateNupkgAsync(
+					nupkgFiles[index],
+					packValidationSettings.Value,
+					token
+				)
+		);
+
+		var snupkgResults = new PackValidationResult[snupkgFiles.Length];
+		await Parallel.ForEachAsync(
+			Enumerable.Range(0, snupkgFiles.Length),
+			parallelOptions,
+			async (index, token) =>
+				snupkgResults[index] = await ValidateSnupkgAsync(
+					snupkgFiles[index],
+					packValidationSettings.Value,
+					token
+				)
+		);
+
+		// Pairing stays sequential and in discovery order: GetOrAddPair mutates shared state, and the
+		// order packages are reported in should not depend on which archive happened to finish first.
+		foreach (var result in nupkgResults)
+		{
+			results.Add(result);
+			GetOrAddPair(packagePairs, result.PackageKey).Nupkg = result;
 		}
 
-		foreach (var package in snupkgFiles)
+		foreach (var result in snupkgResults)
 		{
-			var result = await ValidateSnupkgAsync(
-				package,
-				packValidationSettings.Value,
-				cancellationToken
-			);
 			results.Add(result);
-
-			var pair = GetOrAddPair(packagePairs, result.PackageKey);
-			pair.Snupkg = result;
+			GetOrAddPair(packagePairs, result.PackageKey).Snupkg = result;
 		}
 
 		if (packValidationSettings.Value.RequireSymbolPackage)

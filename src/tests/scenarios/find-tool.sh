@@ -2,8 +2,8 @@
 # Locates the locally built purview-build binary and the appsettings.json that ships beside it.
 #
 # The scenario matrices run the real CLI, not `dotnet run`, so a 20-case sweep stays fast. The tool
-# must therefore have been built first (`just build` or `just scenario-build`). Set
-# PURVIEW_BUILD_TOOL to point at a different binary, for example an installed release.
+# must therefore have been built first (`just build-local-tool`). Set PURVIEW_BUILD_TOOL to point at
+# a different binary, for example an installed release.
 set -eu
 
 # jq on Windows writes CRLF for raw output, and a stray CR ends up inside file names, paths and
@@ -18,6 +18,8 @@ jqc() {
 
 if [ -z "${PURVIEW_BUILD_TOOL:-}" ]; then
 	for candidate in \
+		".tools/local/Purview.Build.exe" \
+		".tools/local/Purview.Build" \
 		"src/src/Build/bin/Release/net10.0/Purview.Build.exe" \
 		"src/src/Build/bin/Release/net10.0/Purview.Build" \
 		"src/src/Build/bin/Debug/net10.0/Purview.Build.exe" \
@@ -31,7 +33,7 @@ fi
 
 if [ -z "${PURVIEW_BUILD_TOOL:-}" ]; then
 	echo "Could not find a built purview-build binary." >&2
-	echo "Run 'just build' first, or set PURVIEW_BUILD_TOOL to a binary." >&2
+	echo "Run 'just build-local-tool' first, or set PURVIEW_BUILD_TOOL to a binary." >&2
 	exit 1
 fi
 

@@ -13,6 +13,7 @@ This file is the primary instruction set for human and AI agents working in this
 - `src/tests/fixtures/` — the declarative scenario matrices (`eligibility-scenarios.json`, `config-resolution-scenarios.json`) and the `release-explain` golden file. These drive both the TUnit suites and the `just` CLI matrices; a new rule or probe location means appending cases here, not writing test code.
 - `src/tests/scenarios/` — the shell runners behind `just release-matrix` / `just config-matrix`.
 - `.github/actions/purview-build/` and `.github/workflows/` — the shared action and reusable workflows.
+- `.github/actions/nuget-sources/` and `.github/actions/prune-github-packages/` — the one implementation of the GitHub Packages source registration (used by all shared entry points) and the mirror-retention step.
 - `.github/workflows/ci.yml` and `release.yml` — this repository's own CI/CD, which dogfoods the tool.
 - `docs/wiki/` — authoritative documentation:
   - `docs/wiki/Architecture.md` — architecture and design decisions.
@@ -30,14 +31,15 @@ This file is the primary instruction set for human and AI agents working in this
 The developer entry points are the `just` recipes; the .NET SDK and `just` are required.
 
 - `just build` — compile `src/Purview.Build` (Debug).
-- `just test` / `just test-unit` — run tests under `src/tests`. CI runs the unit filter only (`Build:TestFilter` in `purview-build.json`); `just test` runs everything.
+- `just test` / `just test-unit` — run tests under `src/tests`. CI and `just test` both run **everything**: `Build:TestFilter` in `purview-build.json` is `/*/*/*/*/`. `just test-unit` narrows to the unit suites for a faster local loop.
 - `just test-eligibility` — the eligibility and config-resolution suites only.
 - `just release-matrix` / `just config-matrix` — run every scenario through the real CLI. **Run both before any change to release or configuration behaviour**; they need no secrets and no network.
 - `just release-explain` / `just release-simulate <ref> <version>` — explain the release decision, mutating nothing.
 - `just lint-yaml` — `actionlint` over the workflow files (skipped with a note when not installed).
 - `just lint-check` / `just lint-fix` — CSharpier (via local tool manifest `.config/dotnet-tools.json`).
-- `just pipeline-pr` / `just pipeline-build` / `just pipeline-release` / `just pipeline-tests` — run the shared tool itself.
-- `just pipeline-dogfood` — pack the tool from source, install it to a temp tool path, and run it against this repository. Use this rather than running the `bin/` binary against a Release build of itself, which fails on a locked file.
+- `just build-local-tool` — publish the tool from source (Release) to `.tools/local`.
+- `just pipeline-pr` / `just pipeline-build` / `just pipeline-release` / `just pipeline-tests` — run the shared tool itself. Each builds `.tools/local` first; **this repository never resolves `Purview.Build` from a feed** (see Rules and invariants).
+- `just pipeline-dogfood` — pack the tool from source, install it from that folder alone, and run it against this repository. This is the check that the *packaged* tool is installable; the `pipeline-*` recipes above cover the ordinary loop.
 - `just clean-all` / `just scrub` — clean build outputs.
 
 CI builds with `--warnaserror`.
@@ -55,6 +57,9 @@ CI builds with `--warnaserror`.
 - **Versioning**: the single source of truth is the `version` field in `package.json`. `VersionModule` resolves it once into an ordered set of release units; every downstream module reads that result and **never recomputes a version**. `Version:Strictness` defaults to `NuGet`, which accepts four-part versions — two consuming repositories ship them, so do not tighten this default.
 - **Eligibility ownership**: the tool *evaluates* release eligibility and reports it; the workflow *decides* and sets `Release__Mode`. The tool must never silently decline to release when asked to. `ReportEligibilityModule` is category `Build` and every failure path in it is a warning.
 - **Rule IDs are permanent**: never renumber or repurpose a `REL0nn`.
+- **This repository builds itself and never references its own released package.** The `Justfile` runs `.tools/local/Purview.Build`, published from the working tree; `ci.yml` and `release.yml` pack from source and install with `--source artifacts` (not `--add-source`, which leaves nuget.org able to satisfy an already-shipped version); `Purview.Build` is absent from `.config/dotnet-tools.json`. `SelfHostingTests` enforces all three. The reusable workflows and the composite action are the opposite case — they install the published tool for consuming repositories and must keep doing so.
+- **GitHub Packages is additive and opt-in.** Consuming from `https://nuget.pkg.github.com/<owner>/index.json` is automatic for every repository using the shared action/workflows; publishing to it is controlled only by the caller repository's `PURVIEW_PUBLISH_GITHUB_PACKAGES` variable, which the release workflow maps onto `NuGet:GitHubPackages:Enabled`. Never make publication automatic, never make it a replacement for NuGet.org, and never put a PAT in the shared path for publishing: publication uses `GITHUB_TOKEN` with `packages: write`. Consumption falls back to `GITHUB_TOKEN` and may use the optional, read-only organisation secret `PURVIEW_PACKAGES_READ_TOKEN` (`read:packages` only) for repositories that should read every package without per-package Actions-access grants. NuGet.org publication and `Release:Mode` semantics must not change.
+- **One source-setup implementation.** `.github/actions/nuget-sources/` is the only place that registers the organisation feed. Both reusable workflows and the composite action call it; `ci.yml` and `release.yml` call it from `./` to dogfood it. It writes the runner's user-level NuGet configuration (never a committed `nuget.config`) and stores only a macro — `%GITHUB_TOKEN%`, or `%PURVIEW_NUGET_TOKEN%` when the optional organisation read token is used.
 - **Do not add a `concurrency` block to `purview-release.yml`**: a shared group between caller and reusable workflow makes GitHub cancel the run as a deadlock. Callers own release serialization.
 - **Do not remove the `release-branch` input** from `purview-release.yml`: all seven consuming repositories still pass it.
 - **Optional workflow inputs are forwarded only when non-empty.** Environment variables outrank `purview-build.json`, so forwarding an unset input as the empty string erases a consumer's configured value. `WorkflowParityTests` enforces this.
@@ -64,7 +69,7 @@ CI builds with `--warnaserror`.
 - **Do not push release tags manually.** The tool owns tagging (`v{version}`) and the GitHub release (`CreateGitHubReleaseModule`); releasing = bump `package.json` and merge. See `docs/wiki/Release-Flow.md`.
 - **Secrets**: supplied at runtime via env vars / CI secrets (`NUGET_APIKEY`/`NUGET_API_KEY`, `GITHUB_TOKEN`, `LOCAL_NUGET_FEED_PATH`). Never hardcode or commit them.
 - **Configuration precedence**: command line > environment variables (nested keys use `__`) > `purview-build.json` > baked-in defaults (`appsettings.json`).
-- **LocalNuGet is local-only**: `Release:Mode=LocalNuGet` is ignored in CI; it only works when running the tool locally.
+- **LocalNuGet is local-only**: `Release:Mode=LocalNuGet` is ignored in CI; it only works when running the tool locally. `LocalNuGetPublishing.DisabledReason` is the single answer to "will this run publish locally?" — `ConfigurationPreflight` and `PublishLocalNuGetModule` must both go through it, and locality must come from `ExecutionEnvironment`, never from ModularPipelines' `ctx.IsRunningLocally()` (a different detector, which does not treat `CI` as a build agent). When the two disagreed, preflight waived the feed-path requirement for a run the module then performed without one.
 
 ## Change process
 

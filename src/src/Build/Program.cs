@@ -9,6 +9,7 @@ if (commandLine.Command == ToolCommand.Version)
 	return 0;
 }
 
+#pragma warning disable CA1031 // Do not catch general exception types
 try
 {
 	// Both --help and release-explain report the resolved configuration, so resolution happens
@@ -69,5 +70,7 @@ catch (Exception exception)
 {
 	CLIConsole.WriteLine();
 	CLIConsole.WriteLine(FailureReport.Format($"{ToolInfo.Name} failed", exception));
+
 	return 1;
 }
+#pragma warning restore CA1031 // Do not catch general exception types

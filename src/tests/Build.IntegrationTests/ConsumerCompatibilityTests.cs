@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Purview.Build.Configuration;
 using Purview.Build.Infra;
@@ -67,7 +68,10 @@ public class ConsumerCompatibilityTests
 
 	[Test]
 	[MethodDataSource(nameof(Shapes))]
-	public async Task Evaluate_GivenConsumerShapeWithUntaggedVersion_Releases(ConsumerShape shape)
+	public async Task Evaluate_GivenConsumerShapeWithUntaggedVersion_Releases(
+		ConsumerShape shape,
+		CancellationToken cancellationToken
+	)
 	{
 		ArgumentNullException.ThrowIfNull(shape);
 
@@ -75,7 +79,7 @@ public class ConsumerCompatibilityTests
 		using var fixture = GitFixture.Create(shape.Version, shape.Branch, tags: ["v0.0.1"], configJson: shape.Config);
 
 		// Act
-		var decision = Evaluate(fixture);
+		var decision = await EvaluateAsync(fixture, cancellationToken);
 
 		// Assert
 		// Before this change the workflow released whenever v{version} did not exist. Every shape
@@ -88,7 +92,10 @@ public class ConsumerCompatibilityTests
 
 	[Test]
 	[MethodDataSource(nameof(Shapes))]
-	public async Task Evaluate_GivenConsumerShapeWithTaggedVersion_SkipsWithExitCodeZero(ConsumerShape shape)
+	public async Task Evaluate_GivenConsumerShapeWithTaggedVersion_SkipsWithExitCodeZero(
+		ConsumerShape shape,
+		CancellationToken cancellationToken
+	)
 	{
 		ArgumentNullException.ThrowIfNull(shape);
 
@@ -101,7 +108,7 @@ public class ConsumerCompatibilityTests
 		);
 
 		// Act
-		var decision = Evaluate(fixture);
+		var decision = await EvaluateAsync(fixture, cancellationToken);
 
 		// Assert
 		await Assert.That(decision.Verdict).IsEqualTo(EligibilityVerdict.Skip);
@@ -194,6 +201,54 @@ public class ConsumerCompatibilityTests
 	}
 
 	[Test]
+	[MethodDataSource(nameof(Shapes))]
+	public async Task GitHubPackages_GivenConsumerShape_IsDisabledByDefault(ConsumerShape shape)
+	{
+		ArgumentNullException.ThrowIfNull(shape);
+
+		// Arrange
+		using var fixture = GitFixture.Create(shape.Version, shape.Branch, configJson: shape.Config);
+		var configuration = BuildConfiguration(fixture, ("Release__Mode", "NuGet"));
+
+		// Act
+		var nuget = configuration.GetSection(NuGetSettings.SectionName).Get<NuGetSettings>()!;
+
+		// Assert
+		await Assert.That(nuget.GitHubPackages.Enabled).IsFalse();
+		await Assert.That(nuget.FeedUrl).IsEqualTo("https://api.nuget.org/v3/index.json");
+	}
+
+	[Test]
+	[MethodDataSource(nameof(Shapes))]
+	public async Task GitHubPackages_GivenOptIn_AddsADestinationAndLeavesNuGetOrgAlone(ConsumerShape shape)
+	{
+		ArgumentNullException.ThrowIfNull(shape);
+
+		// Arrange
+		// The repository variable is the only opt-in, and it must not move the existing publication.
+		using var fixture = GitFixture.Create(shape.Version, shape.Branch, configJson: shape.Config);
+		var configuration = BuildConfiguration(
+			fixture,
+			("Release__Mode", "NuGet"),
+			("NuGet__GitHubPackages__Enabled", "true"),
+			("NuGet__GitHubPackages__Owner", "purview-dev")
+		);
+
+		// Act
+		var nuget = configuration.GetSection(NuGetSettings.SectionName).Get<NuGetSettings>()!;
+		var release = configuration.GetSection(ReleaseSettings.SectionName).Get<ReleaseSettings>()!;
+
+		// Assert
+		await Assert.That(nuget.GitHubPackages.Enabled).IsTrue();
+		await Assert.That(release.ShouldPublish()).IsTrue();
+		await Assert.That(release.ResolveChannel().FeedUrl).IsNull();
+		await Assert
+			.That(nuget.FeedUrl)
+			.IsEqualTo("https://api.nuget.org/v3/index.json")
+			.Because("enabling the mirror must not move the primary publication.");
+	}
+
+	[Test]
 	public async Task Resolve_GivenConfigMovedToDotConfig_AnchorsPathsIdentically()
 	{
 		// Arrange
@@ -254,7 +309,7 @@ public class ConsumerCompatibilityTests
 	static string Describe(EligibilityDecision decision) =>
 		string.Join(Environment.NewLine, decision.Results.Select(result => result.Message));
 
-	static EligibilityDecision Evaluate(GitFixture fixture)
+	static async Task<EligibilityDecision> EvaluateAsync(GitFixture fixture, CancellationToken cancellationToken)
 	{
 		var configuration = BuildConfiguration(fixture);
 		var release = configuration.GetSection(ReleaseSettings.SectionName).Get<ReleaseSettings>() ?? new();
@@ -264,12 +319,12 @@ public class ConsumerCompatibilityTests
 
 		var policy = EligibilityPolicies.Resolve(release.Eligibility, release.Eligibility.Policy);
 
+		var packageJson = await File.ReadAllTextAsync(Path.Combine(fixture.Root, "package.json"), cancellationToken);
 		var rawVersion = fixture.InWorkingDirectory(() =>
-			System
-				.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(fixture.Root, "package.json")))
-				.RootElement.GetProperty("version")
-				.GetString()!
-		);
+		{
+			var doc = JsonDocument.Parse(packageJson);
+			return doc.RootElement.GetProperty("version").GetString()!;
+		});
 
 		var input = EligibilityInput.Create(
 			rawVersion,

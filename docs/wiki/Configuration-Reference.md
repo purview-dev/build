@@ -80,6 +80,7 @@ Once the configuration chain is composed and bound — and before the pipeline i
 | `Build:RunLint=true`, `Build:ProjectType=DotNet`, and `Build:CSharpierPath` is set | the path resolves to an existing file | Lint runs the vendored assembly instead of the manifest tool |
 | `Release:Mode=LocalNuGet`, running locally, `Build:ProjectType` not `Web` | `PublishLocalNuGet:LocalFeedPath` or `LOCAL_NUGET_FEED_PATH`, absolute | The local publish happens after pack, so a late failure wastes the whole build |
 | `Release:Publish` resolves true, `Build:ProjectType` not `Web`, `Release:DryRun=false` | a non-empty feed (`Release:Channels:<channel>:FeedUrl` or `NuGet:FeedUrl`), and either a NuGet API key or `NuGet:TrustedPublishing=true` | The push cannot succeed without them |
+| `NuGet:GitHubPackages:Enabled=true`, `Release:Publish` resolves true, `Build:ProjectType` not `Web`, `Release:DryRun=false`, and the channel is not already the GitHub Packages feed | `GITHUB_TOKEN`, and an absolute `https` feed (derived from the owner unless `FeedUrl` is set) | The additional push cannot authenticate without them |
 | `Release:GitHubRelease` resolves true, `Release:DryRun=false` | `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` | The release cannot be created without them |
 
 `Release:DryRun=true` waives the remote credential requirements; the local feed path is still required because `LocalNuGet` is a local operation. `release-explain`, `--help`, and `--version` never run these checks — they do not build a pipeline.
@@ -144,6 +145,8 @@ Malformed JSON in a configuration file fails with the file path and, where the p
 | `TestPatterns` | `*Tests.csproj` | Comma-separated project search patterns applied under `TestRoot` |
 | `TestProjects` | `*` | Comma-separated project names/globs to run; `*` runs all discovered |
 | `TestFramework` | `TUnit` | `TUnit` (tree-node filter) or `xUnit` (VSTest filter) |
+| `MaxTestParallelism` | `0` | Maximum test projects run concurrently. `0` uses `Environment.ProcessorCount`; `1` runs them one at a time. Each project is its own `dotnet test` process that parallelises internally, so an unbounded fan-out oversubscribes the machine on a large solution. Also bounds `ValidatePackModule`'s per-package validation |
+| `MaxParallelTestsPerProject` | `0` | How many tests run concurrently *inside* each project (TUnit `--maximum-parallel-tests`). `0` derives three quarters of `ProcessorCount`; `-1` hands the decision to the runner. The two bounds multiply, so both default below "as much as possible". The runner's own auto-detection assumes cheap CPU-bound tests and was the slowest setting measured on a harness suite whose tests spawn MSBuild — 183s against 135s for three quarters of the cores |
 | `TestFilter` | `/*/*/*/*/` | TUnit tree-node filter or xUnit `--filter`; empty disables it |
 | `RunLint` | `true` | Restore local tools and run CSharpier check (dotnet) or `format:check` + `lint` scripts (Web) |
 | `CSharpierPath` | unset | Path (relative to the repository root, or absolute) to a CSharpier CLI `.dll` to run with `dotnet` instead of the `dotnet-tools.json` manifest tool. For a repository that needs an unreleased CSharpier build, for example C# 15 union support (dotnet only) |
@@ -185,6 +188,30 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 | `TrustedPublishing` | `false` | Push without an API key (NuGet Trusted Publishing / OIDC) |
 | `APIKey` | unset | Secret; use `NUGET_APIKEY` or `NuGet__APIKey` (configuration keys are case-insensitive, so `NUGET__APIKEY` also binds here) |
 | `EnvAPIKey` | unset | Binds `NuGet__NUGET_APIKEY`; also falls back to process env `NUGET_APIKEY`/`NUGET_API_KEY` |
+
+### `NuGet:GitHubPackages`
+
+An optional **additional** destination: the same package files are also pushed to the organisation's
+GitHub Packages feed. It never replaces NuGet.org, and it does nothing unless a repository opts in.
+The shared release workflow maps the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES` onto
+`NuGet__GitHubPackages__Enabled`, so a consuming repository changes no file to use it. See
+[GitHub Packages](Release-Flow.md#github-packages) for the opt-in steps and access setup.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Enabled` | `false` | Push to GitHub Packages as well as NuGet.org. The workflow sets it from `PURVIEW_PUBLISH_GITHUB_PACKAGES` |
+| `Owner` | unset | Feed owner; falls back to `GITHUB_REPOSITORY_OWNER`, then `purview-dev` |
+| `FeedUrl` | unset | Explicit feed URL; falls back to `https://nuget.pkg.github.com/{Owner}/index.json` |
+| `Username` | unset | Basic-auth username sent with the token; falls back to `GITHUB_ACTOR`, then the owner |
+
+The token is `GITHUB_TOKEN` (shared with GitHub release creation); no separate GitHub Packages secret
+exists. `Enabled` is a plain setting, so a local run can opt in explicitly with
+`--NuGet:GitHubPackages:Enabled=true` and a token. It is still gated by `Release:Publish`: a PR or a
+`Release:Mode=None` run never publishes anywhere. A channel whose own `FeedUrl` is the GitHub Packages
+feed is left to `PublishNuGetModule`; the additional module skips so the artifact is not pushed twice.
+
+Only `.nupkg` files go to GitHub Packages. The registry has no symbol server, so the `.snupkg` remains
+a NuGet.org-only artifact.
 
 ## `PublishLocalNuGet`
 

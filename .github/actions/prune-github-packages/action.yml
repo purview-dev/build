@@ -1,0 +1,51 @@
+name: Prune GitHub Packages
+
+description: >-
+  Deletes older versions of the NuGet packages linked to the current repository. NuGet.org remains the
+  durable archive; this keeps the organisation mirror small. Best effort: a failure warns and never
+  fails an otherwise successful release.
+
+inputs:
+  token:
+    description: Token with package admin access for the publishing repository.
+    required: false
+    default: ${{ github.token }}
+  namespace:
+    description: Organisation (or user) that owns the packages.
+    required: false
+    default: ${{ github.repository_owner }}
+  repository:
+    description: Repository whose linked packages are pruned (owner/name).
+    required: false
+    default: ${{ github.repository }}
+  keep-versions:
+    description: >-
+      Always keep at least this many newest versions per package, even when they are older than the
+      retention window. 0 removes the floor.
+    required: false
+    default: "1"
+  retention-hours:
+    description: >-
+      Keep versions published within this many hours so downstream builds can restore them before
+      NuGet.org indexes them. 0 disables the age window and prunes by keep-versions only.
+    required: false
+    default: "24"
+  version:
+    description: The version just published. It is never deleted, even if the listing is out of order.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Prune older package versions
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PURVIEW_PRUNE_TOKEN: ${{ inputs.token }}
+        PURVIEW_PRUNE_NAMESPACE: ${{ inputs.namespace }}
+        PURVIEW_PRUNE_REPOSITORY: ${{ inputs.repository }}
+        PURVIEW_PRUNE_KEEP: ${{ inputs.keep-versions }}
+        PURVIEW_PRUNE_RETENTION_HOURS: ${{ inputs.retention-hours }}
+        PURVIEW_PRUNE_VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/prune.sh"

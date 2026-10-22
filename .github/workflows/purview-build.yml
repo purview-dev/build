@@ -64,6 +64,11 @@ on:
       # under `secrets: inherit`; declaring it makes the contract explicit either way.
       NUGET__APIKEY:
         required: false
+      # Optional organisation-level classic PAT with read:packages. When present, every repository
+      # can read every package without per-package "Manage Actions access" grants; otherwise the
+      # job token is used.
+      PURVIEW_PACKAGES_READ_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -113,8 +118,24 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      # Registered before the tool install so a build-version that exists only on GitHub Packages (a
+      # version NuGet.org has not indexed yet) is resolvable. It is also before the repository's own
+      # restores. Credentials are resolved from a macro at restore time, so nothing secret is written.
+      # Fork pull requests never receive organisation secrets, so registering a private feed there
+      # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
+      - name: Configure NuGet sources
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          namespace: ${{ github.repository_owner }}
+          token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
       - name: Install shared build
         shell: bash
+        env:
+          # Resolves the %GITHUB_TOKEN% macro when the organisation read token was not used.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           VERSION_ARGS=""
           if [ -n "${{ inputs.build-version }}" ]; then
@@ -148,3 +169,11 @@ jobs:
             export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
           fi
           "${{ runner.temp }}/purview-build/purview-build"
+
+      # A composite action cannot declare a post-step, so cleanup belongs to the workflow. Hosted
+      # runners discard the user-level configuration with the VM; self-hosted runners do not.
+      - name: Remove temporary NuGet sources
+        if: always()
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          mode: remove

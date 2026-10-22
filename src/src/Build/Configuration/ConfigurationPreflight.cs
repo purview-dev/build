@@ -74,6 +74,7 @@ static class ConfigurationPreflight
 		ValidateBuildInputs(build, repositoryRoot, problems);
 		ValidateLocalNuGet(build, release, localNuGet, isRunningLocally, environment, problems);
 		ValidateRemoteNuGetPublish(build, release, nuget, environment, problems);
+		ValidateGitHubPackagesPublish(build, release, nuget, github, environment, problems);
 		ValidateGitHubRelease(release, github, environment, problems);
 
 		return problems;
@@ -125,12 +126,9 @@ static class ConfigurationPreflight
 	)
 	{
 		// The module is intentionally ignored in CI and for Web projects, so demanding the feed path
-		// there would fail a run that never touches it.
-		if (
-			!isRunningLocally
-			|| build.ProjectType == ProjectType.Web
-			|| release.Mode != ReleaseMode.LocalNuGet
-		)
+		// there would fail a run that never touches it. Shared with the module so the two cannot
+		// disagree about whether the path is needed.
+		if (!LocalNuGetPublishing.IsEnabled(build.ProjectType, release.Mode, isRunningLocally))
 			return;
 
 		// Bind the resolved path into the instance being validated, so the same environment lookup
@@ -140,15 +138,21 @@ static class ConfigurationPreflight
 			LocalFeedPath = settings.GetLocalFeedPath(environment) ?? string.Empty,
 		};
 
+		// The lookup travels with the context so the validator resolves the feed path exactly as the
+		// module would. Without it the validator reaches for the real process environment, and a
+		// developer machine with LOCAL_NUGET_FEED_PATH set would quietly satisfy a requirement this
+		// preflight was asked to check as absent.
+		ValidationContext validationContext = new(
+			effective,
+			serviceProvider: null,
+			items: new Dictionary<object, object?>
+			{
+				[PublishLocalNuGetSettings.EnvironmentLookupKey] = environment,
+			}
+		);
+
 		List<ValidationResult> results = [];
-		if (
-			Validator.TryValidateObject(
-				effective,
-				new ValidationContext(effective),
-				results,
-				validateAllProperties: true
-			)
-		)
+		if (Validator.TryValidateObject(effective, validationContext, results, validateAllProperties: true))
 			return;
 
 		problems.AddRange(
@@ -190,6 +194,54 @@ static class ConfigurationPreflight
 			"Release:Publish is enabled, but no NuGet API key is configured. "
 				+ "Set NUGET_APIKEY (or NuGet:APIKey), or set NuGet:TrustedPublishing=true."
 		);
+	}
+
+	static void ValidateGitHubPackagesPublish(
+		BuildSettings build,
+		ReleaseSettings release,
+		NuGetSettings nuget,
+		GitHubSettings github,
+		Func<string, string?> environment,
+		List<string> problems
+	)
+	{
+		// The publish module skips for every reason below, so demanding a token there would fail a run
+		// that never touches the feed. The predicate is shared with the module so the two cannot drift.
+		if (
+			GitHubPackagesPublishing.DisabledReason(
+				build.ProjectType,
+				release,
+				nuget,
+				environment
+			) is not null
+		)
+			return;
+
+		// A dry run performs no push, so it needs no credential.
+		if (release.DryRun)
+			return;
+
+		if (string.IsNullOrWhiteSpace(github.GetGitHubToken(environment)))
+		{
+			problems.Add(
+				"NuGet:GitHubPackages:Enabled is true, but GITHUB_TOKEN is not set. "
+					+ "The shared release workflow provides it automatically; a manual run must export a token "
+					+ "with package write access."
+			);
+		}
+
+		var feedUrl = nuget.GitHubPackages.ResolveFeedUrl(environment);
+		if (
+			!Uri.TryCreate(feedUrl, UriKind.Absolute, out var feed)
+			|| feed.Scheme != Uri.UriSchemeHttps
+		)
+		{
+			problems.Add(
+				$"NuGet:GitHubPackages:FeedUrl '{feedUrl}' is not an absolute https URL. "
+					+ "Leave it unset to derive it from GitHubPackages:Owner, or set it to "
+					+ "https://nuget.pkg.github.com/<owner>/index.json."
+			);
+		}
 	}
 
 	static void ValidateGitHubRelease(

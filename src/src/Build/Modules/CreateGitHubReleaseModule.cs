@@ -11,6 +11,7 @@ namespace Purview.Build.Modules;
 
 [ModuleCategory("Release")]
 [DependsOn<PublishNuGetModule>]
+[DependsOn<PublishGitHubPackagesModule>]
 [DependsOn<ValidatePackModule>]
 [DependsOn<VersionModule>]
 public sealed class CreateGitHubReleaseModule(

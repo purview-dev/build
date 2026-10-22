@@ -5,7 +5,7 @@
 ## Two independent version axes
 
 - The `@ref` suffix on a reusable-workflow or composite-action reference selects the workflow/action **code**: `@main` always runs the latest code, while a release tag (e.g. `@v0.2.0`) pins it for reproducibility. There is no `@latest`; the `@ref` is required for cross-repository references.
-- The `build-version` input selects the installed `Purview.Build` **tool**. Omit it to always install the latest stable tool from nuget.org, or pin an exact version (e.g. `build-version: 0.2.0`) for reproducibility.
+- The `build-version` input selects the installed `Purview.Build` **tool**. Omit it to install the latest stable tool from nuget.org or the organisation mirror (registered first), or pin an exact version (e.g. `build-version: 0.2.0`) for reproducibility.
 
 Mixing a pinned old `@ref` with a floating `build-version` runs newer tool code through older workflow inputs.
 
@@ -21,7 +21,8 @@ jobs:
   build:
     uses: purview-dev/build/.github/workflows/purview-build.yml@main
     # `build-version` is optional; when omitted, the latest stable Purview.Build
-    # from nuget.org is installed. Pin it (e.g. `build-version: 0.2.0`) for
+    # from nuget.org (or the organisation mirror, registered before the install)
+    # is installed. Pin it (e.g. `build-version: 0.2.0`) for
     # reproducible builds.
     secrets: inherit
 ```
@@ -75,7 +76,7 @@ already-released version skips (the job finishes green), and a policy violation 
 the rule. Merging `main` into `release` therefore releases exactly once. See
 [Release Models](Release-Models.md).
 
-The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
 ## Minimal repository setup (composite action)
 
@@ -90,7 +91,24 @@ jobs:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```
 
-The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org; pass an exact version to pin the build.
+The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org or the organisation mirror (registered first); pass an exact version to pin the build, including one that is only on the mirror.
+
+## GitHub Packages
+
+Restoring from the organisation's GitHub Packages feed is **automatic**: the shared action and both
+reusable workflows register it (authenticated with `GITHUB_TOKEN`) before the repository's first
+restore, so nothing in the repository needs to change.
+
+Publishing to it is **opt-in**, directly from the repository:
+
+1. Add `permissions: { contents: write, packages: write }` to `.github/workflows/release.yml`
+   (a reusable workflow cannot elevate its caller).
+2. Set the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES=true`.
+
+The next eligible release then pushes the same packages to NuGet.org and GitHub Packages. No
+`purview-build.json`, project file, or `nuget.config` change. Package access for downstream
+repositories, retention, and failure semantics are documented in
+[Release Flow](Release-Flow.md#github-packages).
 
 ## Local use
 

@@ -129,6 +129,7 @@ static class BuildPipeline
 			.AddModule<PackModule>()
 			.AddModule<ValidatePackModule>()
 			.AddModule<PublishNuGetModule>()
+			.AddModule<PublishGitHubPackagesModule>()
 			.AddModule<PublishLocalNuGetModule>()
 			.AddModule<CreateGitHubReleaseModule>();
 }

@@ -21,13 +21,15 @@ public sealed class PublishLocalNuGetModule(
 	protected override ModuleConfiguration Configure() =>
 		ModuleConfiguration
 			.Create()
-			.WithSkipWhen(ctx =>
-				buildSettings.Value.ProjectType == ProjectType.Web
-				|| !ctx.IsRunningLocally()
-				|| releaseSettings.Value.Mode != ReleaseMode.LocalNuGet
-					? SkipDecision.Skip(
-						"Local NuGet Feed publishing is disabled. Run the pipeline locally with Release__Mode=LocalNuGet to enable it."
-					)
+			// ExecutionEnvironment, not ctx.IsRunningLocally(): ConfigurationPreflight decides whether to
+			// require a local feed path using the same predicate, and the two must not disagree.
+			.WithSkipWhen(_ =>
+				LocalNuGetPublishing.DisabledReason(
+					buildSettings.Value.ProjectType,
+					releaseSettings.Value.Mode,
+					ExecutionEnvironment.IsRunningLocally()
+				) is { } reason
+					? SkipDecision.Skip(reason)
 					: SkipDecision.DoNotSkip
 			)
 			.Build();

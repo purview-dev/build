@@ -91,10 +91,16 @@ on:
       # under `secrets: inherit`; declaring it makes the contract explicit either way.
       NUGET__APIKEY:
         required: false
+      # Optional organisation-level classic PAT with read:packages, used to restore from the mirror
+      # without per-package Actions-access grants. Falls back to the workflow token when absent.
+      PURVIEW_PACKAGES_READ_TOKEN:
+        required: false
 
 permissions:
   contents: write
-  packages: read
+  # Publishing to GitHub Packages needs packages: write. A caller that declares its own permissions
+  # block must grant it too: a reusable workflow can never elevate the caller's token.
+  packages: write
 
 jobs:
   release:
@@ -110,6 +116,11 @@ jobs:
       Release__Mode: ${{ inputs.release-mode }}
       Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
       NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
+      # The repository variable is the opt-in for the additional destination. It is evaluated in the
+      # caller's repository, and an absent variable compares as false, so every existing repository
+      # keeps publishing to NuGet.org only.
+      NuGet__GitHubPackages__Enabled: ${{ vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true' }}
+      NuGet__GitHubPackages__Owner: ${{ github.repository_owner }}
       Build__RunTests: ${{ inputs.run-tests }}
       Build__RunLint: ${{ inputs.run-lint }}
       Build__RunPack: ${{ inputs.run-pack }}
@@ -171,6 +182,17 @@ jobs:
             echo "Build__TestFilter=${{ inputs.test-filter }}" >> "$GITHUB_ENV"
           fi
 
+      # Before the tool install, so a build-version that exists only on GitHub Packages is resolvable.
+      # A fork pull request cannot read the private feed (no organisation secrets), so leave it on
+      # NuGet.org rather than registering a source every restore would be denied.
+      - name: Configure NuGet sources
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          namespace: ${{ github.repository_owner }}
+          token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
       - name: Install shared build
         shell: bash
         run: |
@@ -179,6 +201,18 @@ jobs:
             VERSION_ARGS="--version ${{ inputs.build-version }}"
           fi
           dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
+
+      # The version is reported, never decided: eligibility remains the tool's evaluation below. It is
+      # used only to protect the just-published version from the package cleanup.
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          version=""
+          if [ -f package.json ]; then
+            version="$(jq -r '.version // ""' package.json)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Evaluate release eligibility
         id: eligibility
@@ -219,3 +253,20 @@ jobs:
           Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
         run: |
           "${{ runner.temp }}/purview-build/purview-build"
+
+      # Housekeeping on the mirror only: NuGet.org keeps every version, so this is best effort and
+      # never fails a release. Only reached when the pipeline (both registries) succeeded.
+      - name: Prune older GitHub Packages versions
+        if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'
+        uses: purview-dev/build/.github/actions/prune-github-packages@main
+        with:
+          namespace: ${{ github.repository_owner }}
+          keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
+          retention-hours: ${{ vars.PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS || '24' }}
+          version: ${{ steps.version.outputs.version }}
+
+      - name: Remove temporary NuGet sources
+        if: always()
+        uses: purview-dev/build/.github/actions/nuget-sources@main
+        with:
+          mode: remove

@@ -7,8 +7,9 @@ Before the pipeline is built, `ConfigurationPreflight` verifies the dependencies
 Each module logs a line when it starts (`Running BuildModule...`) before its command output, so long runs report progress in CI logs where the live progress display is disabled.
 
 ```text
-CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish → GitHub release
-                   └→ ReportEligibility
+CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish ─┬→ NuGet.org
+                   └→ ReportEligibility                                                               └→ GitHub Packages (opt-in)
+                                                                                     → GitHub release
 ```
 
 `Lint` and `ReportEligibility` are gates and reports, not inputs: nothing depends on either, so
@@ -94,6 +95,14 @@ Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTests
 
 Pushes every `*.nupkg` in `Build:ArtifactsFolder` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel` declares one and `NuGet:FeedUrl` otherwise. When `NuGet:TrustedPublishing` is true, pushes without an API key (NuGet Trusted Publishing / OIDC federation). When `Release:DryRun` is true, logs the push it would have made and performs none.
 
+## PublishGitHubPackagesModule
+
+Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`. Skip condition: skipped when `Build:ProjectType` is `Web`, `Release:Publish` resolves false, `NuGet:GitHubPackages:Enabled` is false, or the selected channel's feed is already the GitHub Packages registry. The skip reason names the clause that applied.
+
+Publishes the **same** `*.nupkg` files `PublishNuGetModule` pushes — packing happens once — to `https://nuget.pkg.github.com/{owner}/index.json`, with `--skip-duplicate` and `--no-symbols`. It does not depend on `PublishNuGetModule`, so the two registries are pushed independently and a slow NuGet.org indexing does not hold the mirror back. Failures are reported per package and identify the authentication case (`packages: write` and package Actions access). The startup preflight requires `GITHUB_TOKEN` when the module will run.
+
+Authentication uses a single-use NuGet configuration holding the feed credentials, because `dotnet nuget push` has no username/password switches. When the token comes from the environment (the CI path), the password is the `%GITHUB_TOKEN%` macro, so no credential is written to disk; the file is deleted in a `finally`. `Release:DryRun` logs the push it would have made.
+
 ## PublishLocalNuGetModule
 
 Category `Build` — it never reaches a remote feed. Depends on `PackModule` and `ValidatePackModule`. Skip condition: skipped when `Build:ProjectType` is `Web` **or** the tool is not running **locally** (`ctx.IsRunningLocally()`) **or** `Release:Mode` is not `LocalNuGet`. This mode is intentionally ignored in CI.
@@ -104,7 +113,7 @@ Moves the `.nupkg`/`.snupkg` files from `Build:ArtifactsFolder` into the local f
 
 ## CreateGitHubReleaseModule
 
-Category `Release`. Depends on `PublishNuGetModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless the resolved `Release:GitHubRelease` is true. Credentials are checked by the startup preflight: with a real (non-dry-run) release requested, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` must be present before any module runs.
+Category `Release`. Depends on `PublishNuGetModule`, `PublishGitHubPackagesModule`, `ValidatePackModule`, and `VersionModule`. Skip condition: skipped unless the resolved `Release:GitHubRelease` is true. Credentials are checked by the startup preflight: with a real (non-dry-run) release requested, `GITHUB_TOKEN` and `GITHUB_REPOSITORY_ID` must be present before any module runs.
 
 `Release:GitHubRelease` is derived from the channel and then from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it releases when `Release:Mode` is `NuGet` or `GitHubRelease`.
 

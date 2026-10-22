@@ -13,9 +13,12 @@ namespace Purview.Build.Infra;
 /// </remarks>
 sealed class GitFixture : IDisposable
 {
-	GitFixture(string root)
+	readonly string? _previousGitHubRef;
+
+	GitFixture(string root, string? previousGitHubRef)
 	{
 		Root = root;
+		_previousGitHubRef = previousGitHubRef;
 	}
 
 	public string Root { get; }
@@ -35,7 +38,13 @@ sealed class GitFixture : IDisposable
 		var root = Path.Combine(Path.GetTempPath(), "purview-build-git-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(root);
 
-		GitFixture fixture = new(root);
+		// A build agent sets GITHUB_REF to the PR merge ref. These fixtures exist to exercise
+		// discovery of their own branch and tags, so the ambient value must not win; tests that need
+		// it (the precedence test) set it explicitly. Every fixture user is [NotInParallel].
+		var previousGitHubRef = Environment.GetEnvironmentVariable("GITHUB_REF");
+		Environment.SetEnvironmentVariable("GITHUB_REF", null);
+
+		GitFixture fixture = new(root, previousGitHubRef);
 
 		try
 		{
@@ -139,6 +148,8 @@ sealed class GitFixture : IDisposable
 
 	public void Dispose()
 	{
+		Environment.SetEnvironmentVariable("GITHUB_REF", _previousGitHubRef);
+
 		if (!Directory.Exists(Root))
 			return;
 
