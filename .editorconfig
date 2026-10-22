@@ -1,5 +1,3 @@
-# This has been copied from the Purview.BuildSdk package as we can't reference it directly.
-
 # Purview.BuildSdk 1.1.0 - managed file, do not edit
 #
 # This file is written by Purview.BuildSdk and is replaced whenever the SDK version changes. The version
