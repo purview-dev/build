@@ -182,15 +182,7 @@ jobs:
             echo "Build__TestFilter=${{ inputs.test-filter }}" >> "$GITHUB_ENV"
           fi
 
-      - name: Install shared build
-        shell: bash
-        run: |
-          VERSION_ARGS=""
-          if [ -n "${{ inputs.build-version }}" ]; then
-            VERSION_ARGS="--version ${{ inputs.build-version }}"
-          fi
-          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
-
+      # Before the tool install, so a build-version that exists only on GitHub Packages is resolvable.
       # A fork pull request cannot read the private feed (no organisation secrets), so leave it on
       # NuGet.org rather than registering a source every restore would be denied.
       - name: Configure NuGet sources
@@ -200,6 +192,15 @@ jobs:
           namespace: ${{ github.repository_owner }}
           token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
           source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
+      - name: Install shared build
+        shell: bash
+        run: |
+          VERSION_ARGS=""
+          if [ -n "${{ inputs.build-version }}" ]; then
+            VERSION_ARGS="--version ${{ inputs.build-version }}"
+          fi
+          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
       # The version is reported, never decided: eligibility remains the tool's evaluation below. It is
       # used only to protect the just-published version from the package cleanup.

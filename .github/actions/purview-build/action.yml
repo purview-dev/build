@@ -41,17 +41,8 @@ runs:
 
     - uses: oven-sh/setup-bun@v2
 
-    - name: Install shared build
-      shell: bash
-      run: |
-        VERSION_ARGS=""
-        if [ -n "${{ inputs.build-version }}" ]; then
-          VERSION_ARGS="--version ${{ inputs.build-version }}"
-        fi
-        dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
-
-    # Same implementation the reusable workflows use. Registered after the tool install so the
-    # bootstrap resolves Purview.Build from exactly the sources it always has.
+    # Same implementation the reusable workflows use. Registered before the tool install so a
+    # build-version that exists only on GitHub Packages is resolvable.
     # A composite action has no post-step, so this configuration lasts for the rest of the job; the
     # runner is discarded on hosted agents, and the workflows add an explicit cleanup step.
     # Fork pull requests never receive organisation secrets, so registering a private feed there
@@ -63,6 +54,18 @@ runs:
         namespace: ${{ github.repository_owner }}
         token: ${{ inputs.packages-read-token || github.token }}
         source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
+    - name: Install shared build
+      shell: bash
+      env:
+        # Resolves the %GITHUB_TOKEN% macro when the organisation read token was not used.
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        VERSION_ARGS=""
+        if [ -n "${{ inputs.build-version }}" ]; then
+          VERSION_ARGS="--version ${{ inputs.build-version }}"
+        fi
+        dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
     - name: Run shared build
       shell: bash

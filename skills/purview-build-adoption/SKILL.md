@@ -27,7 +27,7 @@ Get this wrong and you run new tool code through old workflow inputs.
 | Axis | What it selects | How |
 | --- | --- | --- |
 | `@ref` on the workflow or action reference | the **workflow/action code** | `@main` for latest, a release tag (`@v0.2.0`) for reproducibility. There is no `@latest`, and the `@ref` is **required** for a cross-repository reference. |
-| the `build-version` input | the installed **tool** | omit it for the latest stable from nuget.org; pin an exact version (`build-version: 0.2.0`) for reproducibility. |
+| the `build-version` input | the installed **tool** | omit it for the latest stable from nuget.org or the organisation mirror (registered first); pin an exact version (`build-version: 0.2.0`) for reproducibility, including one only the mirror has. |
 
 Pin both, or neither. Pinning one and floating the other is the mismatch.
 

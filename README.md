@@ -35,7 +35,8 @@ jobs:
   build:
     uses: purview-dev/build/.github/workflows/purview-build.yml@main
     # `build-version` is optional; when omitted, the latest stable Purview.Build
-    # from nuget.org is installed. Pin it (e.g. `build-version: 0.2.0`) for
+    # from nuget.org (or the organisation mirror, registered before the install)
+    # is installed. Pin it (e.g. `build-version: 0.2.0`) for
     # reproducible builds.
     secrets: inherit
 ```
@@ -68,7 +69,7 @@ on:
 
 The reusable workflow checks whether `v{version}` (read from `package.json`) is already tagged and skips if so, so merging `main` into `release` releases exactly once.
 
-The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
 ### Minimal repository setup (composite action)
 
@@ -83,7 +84,7 @@ jobs:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```
 
-The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org; pass an exact version to pin the build.
+The action's `build-version` input is optional. When omitted, `dotnet tool install` resolves the latest stable `Purview.Build` from nuget.org or the organisation mirror (registered first); pass an exact version to pin the build, including one that is only on the mirror.
 
 ### Local use
 
@@ -187,6 +188,10 @@ A package source mapping is **always** written. Central package management raise
 than one source is configured without mapping, and every Purview repository uses it. With no explicit
 patterns the mapping maps `*` to **both** sources — that is not a priority mechanism, NuGet still
 resolves the highest matching version across both — so it only makes the configuration legal.
+
+The source is registered **before** `dotnet tool install`, so a `build-version` that exists only on the
+mirror (NuGet.org has not indexed it yet) is installed from GitHub Packages. The HTTP cache is cleared
+first, so a version published moments ago is visible rather than hidden by a cached negative result.
 
 ### Making every repository able to read everything
 

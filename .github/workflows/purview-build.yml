@@ -118,18 +118,9 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Install shared build
-        shell: bash
-        run: |
-          VERSION_ARGS=""
-          if [ -n "${{ inputs.build-version }}" ]; then
-            VERSION_ARGS="--version ${{ inputs.build-version }}"
-          fi
-          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
-
-      # Registered after the tool install on purpose: the bootstrap keeps resolving Purview.Build from
-      # exactly the sources it always has, and only the repository's own restores see the new feed.
-      # Credentials are resolved from %GITHUB_TOKEN% at restore time, so nothing secret is written.
+      # Registered before the tool install so a build-version that exists only on GitHub Packages (a
+      # version NuGet.org has not indexed yet) is resolvable. It is also before the repository's own
+      # restores. Credentials are resolved from a macro at restore time, so nothing secret is written.
       # Fork pull requests never receive organisation secrets, so registering a private feed there
       # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
       - name: Configure NuGet sources
@@ -139,6 +130,18 @@ jobs:
           namespace: ${{ github.repository_owner }}
           token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
           source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
+      - name: Install shared build
+        shell: bash
+        env:
+          # Resolves the %GITHUB_TOKEN% macro when the organisation read token was not used.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          VERSION_ARGS=""
+          if [ -n "${{ inputs.build-version }}" ]; then
+            VERSION_ARGS="--version ${{ inputs.build-version }}"
+          fi
+          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
       - name: Run shared build
         env:

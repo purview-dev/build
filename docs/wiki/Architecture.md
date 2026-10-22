@@ -107,10 +107,11 @@ The shared CI surface is three documents plus two helper actions, all in this re
 | `.github/actions/nuget-sources/` | Registers nuget.org + the organisation GitHub Packages feed in the user-level NuGet configuration, with `%GITHUB_TOKEN%` credentials, and restores it on cleanup |
 | `.github/actions/prune-github-packages/` | Deletes older versions of the repository's packages from the mirror after a successful release |
 
-The source configuration is implemented once and reused by every entry point. It runs after the
-`Purview.Build` tool install (the bootstrap's source list stays exactly as it was) and before the
-repository's first restore. This repository dogfoods both helper actions from `./.github/actions/...`
-in `ci.yml`/`release.yml`; consumers get them from `purview-dev/build/...@main`.
+The source configuration is implemented once and reused by every entry point. It runs **before** the
+`Purview.Build` tool install, so a pinned `build-version` that exists only on GitHub Packages is
+resolvable (and before the repository's first restore). This repository dogfoods both helper actions
+from `./.github/actions/...` in `ci.yml`/`release.yml`; consumers get them from
+`purview-dev/build/...@main`.
 
 A reusable workflow cannot discover the ref it was invoked at (`uses:` does not accept expressions),
 so the helper actions are referenced at `@main`. A consumer that pins the reusable workflow to an old

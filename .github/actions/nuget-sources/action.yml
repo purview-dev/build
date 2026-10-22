@@ -32,9 +32,11 @@ inputs:
     required: false
     default: ""
   clear-http-cache:
-    description: Clear NuGet's HTTP cache after configuring, so a just-published version is visible.
+    description: >-
+      Clear NuGet's HTTP cache after configuring, so a version published moments ago is visible.
+      Defaults to true; set false to keep a warm cache on a runner you control.
     required: false
-    default: "false"
+    default: "true"
 
 runs:
   using: composite

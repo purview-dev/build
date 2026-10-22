@@ -54,6 +54,36 @@ public class NuGetSourceSetupTests
 	}
 
 	[Test]
+	public async Task SourceConfiguration_RunsBeforeTheToolInstall()
+	{
+		// Arrange
+		// A build-version pinned to a version only GitHub Packages has (NuGet.org not indexed yet) is
+		// resolved by `dotnet tool install`, so the feed must exist before that step.
+		var build = Read(BuildWorkflow);
+		var release = Read(ReleaseWorkflow);
+		var composite = Read(CompositeAction);
+
+		// Act & Assert
+		foreach (
+			var (name, content) in new[]
+			{
+				(BuildWorkflow, build),
+				(ReleaseWorkflow, release),
+				(CompositeAction, composite),
+			}
+		)
+		{
+			var feed = content.IndexOf("nuget-sources", StringComparison.Ordinal);
+			var install = content.IndexOf("Install shared build", StringComparison.Ordinal);
+
+			await Assert
+				.That(feed)
+				.IsLessThan(install)
+				.Because($"{name} must register the mirror before installing the tool.");
+		}
+	}
+
+	[Test]
 	public async Task SourceAction_UsesAnOrganisationReadTokenWhenProvided()
 	{
 		// Arrange
