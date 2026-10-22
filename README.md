@@ -183,6 +183,11 @@ satisfies the reference.
 No repository configuration is required. A repository whose own `nuget.config` contains `<clear />`
 hides lower-priority sources; the setup step emits a warning naming that file.
 
+A package source mapping is **always** written. Central package management raises `NU1507` when more
+than one source is configured without mapping, and every Purview repository uses it. With no explicit
+patterns the mapping maps `*` to **both** sources — that is not a priority mechanism, NuGet still
+resolves the highest matching version across both — so it only makes the configuration legal.
+
 ### Making every repository able to read everything
 
 GitHub's per-package **Manage Actions access** grant is the only way `GITHUB_TOKEN` can read another
@@ -220,10 +225,10 @@ before NuGet.org has indexed it), set the repository variable:
 PURVIEW_NUGET_SOURCE_MAPPING=Purview.ValueObjects
 ```
 
-Semicolon-separate several patterns. This enables NuGet package source mapping for exactly those
-patterns and leaves `*` on NuGet.org, and clears the HTTP cache so a just-published version is visible.
-Do not map a prefix whose packages are not all mirrored yet; unmapped packages continue to come from
-NuGet.org.
+Semicolon-separate several patterns. Package source mapping is always written; this variable pins the
+listed patterns to GitHub Packages, leaves `*` on NuGet.org, and clears the HTTP cache so a
+just-published version is visible. Do not map a prefix whose packages are not all mirrored yet;
+unmapped packages continue to come from NuGet.org.
 
 ### Opting a repository in to publishing
 

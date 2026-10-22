@@ -152,7 +152,7 @@ Optional repository variables:
 | --- | --- | --- |
 | `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` | `1` | newest versions always kept by the post-release mirror cleanup; `0` removes the floor |
 | `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS` | `24` | how long a mirrored version survives; `1` for an hourly window, `0` for count-only pruning |
-| `PURVIEW_NUGET_SOURCE_MAPPING` | empty | semicolon-separated package patterns that must resolve **only** from GitHub Packages; enables package source mapping and clears the HTTP cache |
+| `PURVIEW_NUGET_SOURCE_MAPPING` | empty | semicolon-separated package patterns pinned **only** to GitHub Packages; mapping itself is always written (`*` to both by default), and setting this also clears the HTTP cache |
 
 ## Locally
 

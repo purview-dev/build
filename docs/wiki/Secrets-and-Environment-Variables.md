@@ -55,7 +55,7 @@ This is enforced by a test (`WorkflowParityTests`), which asserts that every `Se
 | `PURVIEW_PUBLISH_GITHUB_PACKAGES` | Repository Actions **variable**, read only by the release workflows: `true` adds GitHub Packages as a publication destination. Absent or `false` means NuGet.org only. |
 | `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` | Repository Actions variable read by the release workflows: the newest N versions of each package are always kept by the mirror cleanup (default `1`; `0` removes the floor). |
 | `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS` | Repository Actions variable read by the release workflows: how long a mirrored version survives after publication (default `24`; `1` for an hourly window; `0` prunes by count only). |
-| `PURVIEW_NUGET_SOURCE_MAPPING` | Repository Actions variable read by the source setup: semicolon-separated package ID patterns that must resolve only from GitHub Packages. Empty keeps both sources available. |
+| `PURVIEW_NUGET_SOURCE_MAPPING` | Repository Actions variable read by the source setup: semicolon-separated package ID patterns pinned **only** to GitHub Packages. Mapping is always written (`*` to both sources by default); setting this also clears the HTTP cache. |
 | `GITHUB_REF` | Read by the eligibility rules as the evaluated ref, unless `Release:Context:Ref` overrides it. |
 
 Pipeline verbosity is configured with `Build__LogLevel` (default `Information`, which reports each module's command output and progress); set `Build__LogLevel=Warning` for quiet CI logs.

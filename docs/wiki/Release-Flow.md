@@ -142,10 +142,12 @@ The shared composite action and both reusable workflows register nuget.org and t
 in the runner's **user-level** NuGet configuration (never the repository's `nuget.config`),
 authenticated with `GITHUB_TOKEN` through a `%GITHUB_TOKEN%` credential macro. Both sources stay
 enabled, so a package that is only on NuGet.org keeps restoring, and a version that exists only on
-GitHub Packages is found while NuGet.org catches up. When NuGet has cached source metadata from before
-a version was published, the cache can hide it until it expires; `PURVIEW_NUGET_SOURCE_MAPPING`
-(comma/semicolon-separated package patterns) enables package source mapping for those patterns and
-clears the HTTP cache, at the cost of forbidding fallback for them.
+GitHub Packages is found while NuGet.org catches up. A package source mapping is always written
+(`*` to both sources by default), because central package management raises `NU1507` when more than one
+source is configured without one; it is not a priority mechanism. When NuGet has cached source
+metadata from before a version was published, the cache can hide it until it expires;
+`PURVIEW_NUGET_SOURCE_MAPPING` (comma/semicolon-separated package patterns) pins those patterns to
+GitHub Packages and clears the HTTP cache, at the cost of forbidding fallback for them.
 
 No repository opts in to consumption. A repository whose own `nuget.config` contains `<clear />`
 disables lower-priority sources and hides the feed; the setup step warns with that file's path.
