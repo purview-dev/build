@@ -104,8 +104,8 @@ The shared CI surface is three documents plus two helper actions, all in this re
 | `.github/workflows/purview-build.yml` | Reusable PR/build workflow |
 | `.github/workflows/purview-release.yml` | Reusable release workflow (evaluates eligibility, runs the pipeline, prunes the mirror) |
 | `.github/actions/purview-build/action.yml` | Composite action for callers that need surrounding steps |
-| `.github/actions/nuget-sources/` | Registers nuget.org + the organisation GitHub Packages feed in the user-level NuGet configuration, with `%GITHUB_TOKEN%` credentials, and restores it on cleanup |
-| `.github/actions/prune-github-packages/` | Deletes older versions of the repository's packages from the mirror after a successful release |
+| `actions/nuget-sources/` | Registers nuget.org + the organisation GitHub Packages feed in the user-level NuGet configuration, with `%GITHUB_TOKEN%` credentials, and restores it on cleanup |
+| `actions/prune-github-packages/` | Deletes older versions of the repository's packages from the mirror after a successful release |
 
 The source configuration is implemented once and reused by every entry point. It runs **before** the
 `Purview.Build` tool install, so a pinned `build-version` that exists only on GitHub Packages is

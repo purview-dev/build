@@ -26,7 +26,7 @@ jobs:
       # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
       - name: Configure NuGet sources
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-        uses: ./.github/actions/nuget-sources
+        uses: ./actions/nuget-sources
         with:
           namespace: ${{ github.repository_owner }}
           token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
@@ -68,6 +68,6 @@ jobs:
 
       - name: Remove temporary NuGet sources
         if: always()
-        uses: ./.github/actions/nuget-sources
+        uses: ./actions/nuget-sources
         with:
           mode: remove

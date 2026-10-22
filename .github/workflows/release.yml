@@ -39,7 +39,7 @@ jobs:
 
       # Dogfoods the source configuration from the working tree, before the first restore.
       - name: Configure NuGet sources
-        uses: ./.github/actions/nuget-sources
+        uses: ./actions/nuget-sources
         with:
           namespace: ${{ github.repository_owner }}
           token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
@@ -132,7 +132,7 @@ jobs:
       # Mirror housekeeping, never a release gate: NuGet.org holds every version.
       - name: Prune older GitHub Packages versions
         if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'
-        uses: ./.github/actions/prune-github-packages
+        uses: ./actions/prune-github-packages
         with:
           namespace: ${{ github.repository_owner }}
           keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
@@ -141,6 +141,6 @@ jobs:
 
       - name: Remove temporary NuGet sources
         if: always()
-        uses: ./.github/actions/nuget-sources
+        uses: ./actions/nuget-sources
         with:
           mode: remove

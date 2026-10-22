@@ -49,7 +49,7 @@ runs:
     # would only produce a 401 against a source the run cannot read. They restore from NuGet.org.
     - name: Configure NuGet sources
       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-      uses: purview-dev/build/.github/actions/nuget-sources@main
+      uses: purview-dev/build/actions/nuget-sources@main
       with:
         namespace: ${{ github.repository_owner }}
         token: ${{ inputs.packages-read-token || github.token }}
