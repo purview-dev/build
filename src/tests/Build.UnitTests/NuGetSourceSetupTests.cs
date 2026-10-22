@@ -12,9 +12,9 @@ namespace Purview.Build;
 /// </remarks>
 public class NuGetSourceSetupTests
 {
-	const string SourceAction = ".github/actions/nuget-sources/action.yml";
-	const string SourceScript = ".github/actions/nuget-sources/nuget-sources.sh";
-	const string PruneScript = ".github/actions/prune-github-packages/prune.sh";
+	const string SourceAction = "actions/nuget-sources/action.yml";
+	const string SourceScript = "actions/nuget-sources/nuget-sources.sh";
+	const string PruneScript = "actions/prune-github-packages/prune.sh";
 	const string BuildWorkflow = ".github/workflows/purview-build.yml";
 	const string ReleaseWorkflow = ".github/workflows/purview-release.yml";
 	const string SelfHostedBuild = ".github/workflows/ci.yml";
@@ -167,14 +167,14 @@ public class NuGetSourceSetupTests
 		var composite = Read(CompositeAction);
 
 		// Act & Assert
-		await Assert.That(build).Contains("purview-dev/build/.github/actions/nuget-sources@");
-		await Assert.That(release).Contains("purview-dev/build/.github/actions/nuget-sources@");
-		await Assert.That(composite).Contains("purview-dev/build/.github/actions/nuget-sources@");
+		await Assert.That(build).Contains("purview-dev/build/actions/nuget-sources@");
+		await Assert.That(release).Contains("purview-dev/build/actions/nuget-sources@");
+		await Assert.That(composite).Contains("purview-dev/build/actions/nuget-sources@");
 		await Assert
 			.That(selfBuild)
-			.Contains("uses: ./.github/actions/nuget-sources")
+			.Contains("uses: ./actions/nuget-sources")
 			.Because("this repository dogfoods the same action from the working tree.");
-		await Assert.That(selfRelease).Contains("uses: ./.github/actions/nuget-sources");
+		await Assert.That(selfRelease).Contains("uses: ./actions/nuget-sources");
 	}
 
 	[Test]

@@ -187,7 +187,7 @@ jobs:
       # NuGet.org rather than registering a source every restore would be denied.
       - name: Configure NuGet sources
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-        uses: purview-dev/build/.github/actions/nuget-sources@main
+        uses: purview-dev/build/actions/nuget-sources@main
         with:
           namespace: ${{ github.repository_owner }}
           token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
@@ -258,7 +258,7 @@ jobs:
       # never fails a release. Only reached when the pipeline (both registries) succeeded.
       - name: Prune older GitHub Packages versions
         if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'
-        uses: purview-dev/build/.github/actions/prune-github-packages@main
+        uses: purview-dev/build/actions/prune-github-packages@main
         with:
           namespace: ${{ github.repository_owner }}
           keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
@@ -267,6 +267,6 @@ jobs:
 
       - name: Remove temporary NuGet sources
         if: always()
-        uses: purview-dev/build/.github/actions/nuget-sources@main
+        uses: purview-dev/build/actions/nuget-sources@main
         with:
           mode: remove

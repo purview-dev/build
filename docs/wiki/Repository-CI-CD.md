@@ -8,7 +8,7 @@ Runs on pull requests and pushes to `main`:
 
 1. Check out the repository.
 2. Set up .NET and Bun.
-3. **Configure NuGet sources** with the shared `./.github/actions/nuget-sources` action, which is the
+3. **Configure NuGet sources** with the shared `./actions/nuget-sources` action, which is the
    same implementation the reusable workflows use. It registers nuget.org and the organisation GitHub
    Packages feed for the job. The workflow declares `packages: read`, and `GITHUB_TOKEN` is job-level so
    the `%GITHUB_TOKEN%` credential can be resolved.
@@ -29,7 +29,7 @@ The filter used to be `/*/*/*/*[Category=Unit]`, which quietly excluded the inte
 Runs on push to `main` and is serialized by its own `concurrency` group (`purview-build-release`, `cancel-in-progress: false`):
 
 1. Read the `package.json` version. This step is irreducible: the tool cannot read its own version for `dotnet pack` before it has been packed. It makes **no** eligibility decision.
-2. Configure NuGet sources with the shared `./.github/actions/nuget-sources` action (nuget.org + the organisation feed).
+2. Configure NuGet sources with the shared `./actions/nuget-sources` action (nuget.org + the organisation feed).
 3. Restore and build `src/Build.slnx` with `--warnaserror`.
 4. Pack the tool from source with `-p:ContinuousIntegrationBuild=true`.
 5. Verify the `NUGET__APIKEY` secret is set.
