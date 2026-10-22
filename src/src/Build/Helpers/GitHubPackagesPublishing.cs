@@ -1,3 +1,5 @@
+using ModularPipelines.Options;
+
 namespace Purview.Build.Helpers;
 
 /// <summary>
@@ -124,4 +126,24 @@ static class GitHubPackagesPublishing
 	}
 
 	static string Escape(string value) => System.Security.SecurityElement.Escape(value) ?? string.Empty;
+
+	/// <summary>
+	/// The execution options for a GitHub Packages push.
+	/// </summary>
+	/// <remarks>
+	/// The reusable release workflow exports the NuGet.org key as <c>NUGET_API_KEY</c>. NuGet 7.6+
+	/// attaches that environment variable as the push API key even when the source has Basic
+	/// credentials, so GitHub Packages receives an invalid key alongside valid credentials and rejects
+	/// the request. Clearing it for this child leaves the source credentials as the only authority.
+	/// </remarks>
+	internal static CommandExecutionOptions CreatePushExecutionOptions() =>
+		new()
+		{
+			// The result is inspected per package so every failure is reported, not just the first.
+			ThrowOnNonZeroExitCode = false,
+			EnvironmentVariables = new Dictionary<string, string?>
+			{
+				["NUGET_API_KEY"] = string.Empty,
+			},
+		};
 }

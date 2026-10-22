@@ -3,7 +3,6 @@ using ModularPipelines.Configuration;
 using ModularPipelines.Context;
 using ModularPipelines.Models;
 using ModularPipelines.Modules;
-using ModularPipelines.Options;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Purview.Build.Modules;
@@ -161,11 +160,7 @@ public sealed class PublishGitHubPackagesModule(
 				// GitHub Packages has no symbol server: the .snupkg stays a NuGet.org artifact.
 				"--no-symbols"
 			),
-			new CommandExecutionOptions
-			{
-				// The result is inspected per package so every failure is reported, not just the first.
-				ThrowOnNonZeroExitCode = false,
-			},
+			GitHubPackagesPublishing.CreatePushExecutionOptions(),
 			cancellationToken
 		);
 
