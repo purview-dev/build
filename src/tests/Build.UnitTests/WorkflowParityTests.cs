@@ -128,11 +128,17 @@ public partial class WorkflowParityTests
 		foreach (var input in referenced)
 		{
 			await Assert
-				.That(NonEmptyGuard(input).IsMatch(content))
+				.That(
+					NonEmptyGuard(input).IsMatch(content)
+						|| EnvironmentGuard(input).IsMatch(content)
+						|| ConditionGuard(input).IsMatch(content)
+				)
 				.IsTrue()
 				.Because(
-					$"{workflowFile} references optional input '{input}' without an "
-						+ $"`if [ -n \"${{{{ inputs.{input} }}}}\" ]` guard."
+					$"{workflowFile} references optional input '{input}' without guarding it against "
+						+ $"being empty. Map it to {EnvironmentName(input)} in `env:` and test that variable, "
+						+ $"guard a step with `if: ... inputs.{input} == ''`, or guard it inline with "
+						+ $"`if [ -n \"${{{{ inputs.{input} }}}}\" ]`."
 				);
 		}
 	}
@@ -255,11 +261,18 @@ public partial class WorkflowParityTests
 	/// Every <c>Section__Key</c> style environment variable the workflow sets, excluding the tool's
 	/// own direct-read variables.
 	/// </summary>
+	/// <remarks>
+	/// Keys reach the environment two ways: written literally as <c>Key: value</c> under
+	/// <c>env:</c>, or handed to the <c>forward</c> helper, which appends them to
+	/// <c>$GITHUB_ENV</c>. Both are collected, or moving a key to the helper would quietly remove
+	/// it from the parity check that proves it binds to a real settings property.
+	/// </remarks>
 	static IReadOnlyList<string> SettingsKeys(string content) =>
 		[
 			.. EnvironmentKey()
 				.Matches(content)
 				.Select(match => match.Groups["key"].Value)
+				.Concat(ForwardedKey().Matches(content).Select(match => match.Groups["key"].Value))
 				.Where(key => !ToolEnvironmentVariables.Contains(key, StringComparer.Ordinal))
 				.Distinct(StringComparer.Ordinal)
 				.Order(StringComparer.Ordinal),
@@ -320,8 +333,52 @@ public partial class WorkflowParityTests
 			TimeSpan.FromSeconds(5)
 		);
 
+	/// <summary>
+	/// The environment variable an input is mapped to, by convention: <c>build-version</c> becomes
+	/// <c>INPUT_BUILD_VERSION</c>.
+	/// </summary>
+	static string EnvironmentName(string input) => "INPUT_" + input.Replace('-', '_').ToUpperInvariant();
+
+	/// <summary>
+	/// The preferred guard: the input is mapped into <c>env:</c> and the resulting shell variable
+	/// is tested, rather than interpolated into the script text.
+	/// </summary>
+	/// <remarks>
+	/// Interpolating <c>${{ inputs.x }}</c> inside a <c>run:</c> body substitutes a caller-supplied
+	/// value into the shell source before bash parses it, so an inline guard protects the
+	/// configuration while leaving the script injectable. Guarding the environment variable gives
+	/// the same empty-value protection without that.
+	/// </remarks>
+	/// <summary>
+	/// A step-level condition that tests the input for emptiness, such as a step that fails the
+	/// run when a required-in-context input was not supplied.
+	/// </summary>
+	/// <remarks>
+	/// This covers an input that never reaches a shell or an environment variable at all - one
+	/// passed straight to another action's <c>with:</c> - where the hazard is not an overridden
+	/// configuration value but a silently useless run. Failing loudly is a stronger guard than
+	/// skipping, so it counts.
+	/// </remarks>
+	static Regex ConditionGuard(string input) =>
+		new(@"if:.*inputs\." + Regex.Escape(input) + @"\s*(?:==|!=)\s*''", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+	static Regex EnvironmentGuard(string input)
+	{
+		var name = Regex.Escape(EnvironmentName(input));
+
+		return new(
+			// `[ -n "$X" ]`, `[ -z "$X" ] ||`, or handed to the forward helper, which guards it.
+			$@"\[\s+-[nz]\s+""\${name}""\s+\]|forward\s+\S+\s+""\${name}""",
+			RegexOptions.None,
+			TimeSpan.FromSeconds(5)
+		);
+	}
+
 	[GeneratedRegex(@"(?<key>[A-Za-z_][A-Za-z0-9_]*__[A-Za-z0-9_]+(?:__[A-Za-z0-9_]+)*)\s*[:=]")]
 	private static partial Regex EnvironmentKey();
+
+	[GeneratedRegex(@"forward\s+(?<key>[A-Za-z_][A-Za-z0-9_]*__[A-Za-z0-9_]+(?:__[A-Za-z0-9_]+)*)\s")]
+	private static partial Regex ForwardedKey();
 
 	[GeneratedRegex(
 		@"^      (?<name>[a-z][a-z0-9-]*):\s*$(?<body>(?:\n(?:        .*|\s*))*?)(?=^      [a-z]|^    [a-z]|^[a-z])",

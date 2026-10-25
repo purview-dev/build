@@ -26,16 +26,16 @@ jobs:
       # Resolved by the package source's %GITHUB_TOKEN% credential during restore and push.
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       # Dogfoods the source configuration from the working tree, before the first restore.
       - name: Configure NuGet sources
@@ -101,15 +101,22 @@ jobs:
 
           jq -r '.message' explain.json > eligibility-message.txt
 
+      # The message is flattened to one line before it reaches a workflow command: a `::` sequence
+      # after a newline would otherwise be parsed as a command rather than printed.
       - name: Report ineligible release
         if: steps.eligibility.outputs.verdict == 'Fail'
         run: |
-          echo "::error title=Release not eligible::$(cat eligibility-message.txt)"
+          set -euo pipefail
+          message="$(tr '\n' ' ' < eligibility-message.txt | sed 's/::/:﹕/g')"
+          echo "::error title=Release not eligible::${message}"
           exit 1
 
       - name: Skip release
         if: steps.eligibility.outputs.verdict == 'Skip'
-        run: echo "::notice title=Release skipped::$(cat eligibility-message.txt)"
+        run: |
+          set -euo pipefail
+          message="$(tr '\n' ' ' < eligibility-message.txt | sed 's/::/:﹕/g')"
+          echo "::notice title=Release skipped::${message}"
 
       - name: Run release pipeline (builds, publishes and tags itself)
         if: steps.eligibility.outputs.verdict == 'Release'

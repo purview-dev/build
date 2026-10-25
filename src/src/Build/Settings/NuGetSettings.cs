@@ -24,9 +24,17 @@ public sealed record NuGetSettings
 	public string FeedUrl { get; init; } = "https://api.nuget.org/v3/index.json";
 
 	/// <summary>
-	/// When true, packages are pushed without an API key using NuGet Trusted Publishing
-	/// (OIDC federation, e.g. via the NuGet/login GitHub Action). No API key is required.
+	/// When true, the API key is expected to arrive at run time from NuGet Trusted Publishing
+	/// (OIDC federation, via the <c>NuGet/login</c> GitHub Action) rather than from configuration
+	/// or a stored secret.
 	/// </summary>
+	/// <remarks>
+	/// This does not mean "push without a key". The OIDC exchange mints a short-lived key, which
+	/// the login action exports as <c>NUGET_API_KEY</c>; the push uses it like any other. The flag
+	/// only tells the preflight not to demand a key up front, because none is configured and none
+	/// should be. A publish that finds no key with this set is a misconfigured workflow, and is
+	/// reported rather than attempted unauthenticated.
+	/// </remarks>
 	public bool TrustedPublishing { get; init; }
 
 	/// <summary>

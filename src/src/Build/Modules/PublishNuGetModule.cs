@@ -58,6 +58,20 @@ public sealed class PublishNuGetModule(
 			return [];
 		}
 
+		// Trusted Publishing does not mean "no API key": the OIDC exchange produces a short-lived
+		// one, which NuGet/login puts in the environment for this step to find. Pushing with no key
+		// at all is simply an unauthenticated push, and nuget.org rejects it.
+		var apiKey = nugetSettings.Value.GetNuGetAPIKey();
+
+		if (nugetSettings.Value.TrustedPublishing && string.IsNullOrWhiteSpace(apiKey))
+		{
+			throw new InvalidOperationException(
+				"NuGet:TrustedPublishing is enabled, but no API key reached the pipeline. The OIDC "
+					+ "exchange produces a short-lived key, so a publishing job must grant `id-token: write` "
+					+ "and run the NuGet/login action before this step, exporting its output as NUGET_API_KEY."
+			);
+		}
+
 		var tasks = packages.Select(package =>
 			context
 				.DotNet()
@@ -66,9 +80,7 @@ public sealed class PublishNuGetModule(
 					{
 						Path = package,
 						Source = feedUrl,
-						ApiKey = nugetSettings.Value.TrustedPublishing
-							? null
-							: nugetSettings.Value.GetNuGetAPIKey(),
+						ApiKey = apiKey,
 						SkipDuplicate = true,
 					},
 					cancellationToken: cancellationToken
