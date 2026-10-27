@@ -1,0 +1,35 @@
+version: 2
+
+updates:
+  # The workflows here are pinned to action SHAs. Without this, pinning trades a moving trust
+  # boundary for a frozen, unpatched one — and these workflows run in every consuming repository.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The composite action is a separate manifest location as far as Dependabot is concerned.
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/purview-build"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "build"
+
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      all:
+        patterns: ["*"]

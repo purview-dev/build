@@ -35,11 +35,11 @@ runs:
   using: composite
   steps:
     - name: Setup .NET
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         dotnet-version: ${{ inputs.dotnet-version }}
 
-    - uses: oven-sh/setup-bun@v2
+    - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
     # Same implementation the reusable workflows use. Registered before the tool install so a
     # build-version that exists only on GitHub Packages is resolvable.
@@ -60,21 +60,32 @@ runs:
       env:
         # Resolves the %GITHUB_TOKEN% macro when the organisation read token was not used.
         GITHUB_TOKEN: ${{ github.token }}
+        # Caller input reaches the script through env, never by interpolating an expression into the script: the
+        # value is substituted into the script text before bash sees it, so a crafted input would
+        # run as shell.
+        INPUT_BUILD_VERSION: ${{ inputs.build-version }}
+        TOOL_PATH: ${{ runner.temp }}/purview-build
       run: |
-        VERSION_ARGS=""
-        if [ -n "${{ inputs.build-version }}" ]; then
-          VERSION_ARGS="--version ${{ inputs.build-version }}"
+        set -euo pipefail
+
+        if [ -n "$INPUT_BUILD_VERSION" ]; then
+          dotnet tool install Purview.Build --tool-path "$TOOL_PATH" --version "$INPUT_BUILD_VERSION"
+        else
+          echo "::warning title=Unpinned build tool::No build-version was supplied, so the latest Purview.Build on nuget.org will be installed and executed. Pin build-version for a reproducible build."
+          dotnet tool install Purview.Build --tool-path "$TOOL_PATH"
         fi
-        dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
     - name: Run shared build
       shell: bash
       run: |
+        set -euo pipefail
+
         # Only forward config-path when the caller provided it: an empty PURVIEW_BUILD_CONFIG
         # would be an explicit-but-missing path, which the tool treats as an error.
-        if [ -n "${{ inputs.config-path }}" ]; then
-          export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
-        fi
-        "${{ runner.temp }}/purview-build/purview-build"
+        [ -z "$INPUT_CONFIG_PATH" ] || export PURVIEW_BUILD_CONFIG="$INPUT_CONFIG_PATH"
+
+        "$TOOL_PATH/purview-build"
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+        TOOL_PATH: ${{ runner.temp }}/purview-build

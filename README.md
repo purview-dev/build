@@ -71,6 +71,48 @@ The reusable workflow checks whether `v{version}` (read from `package.json`) is 
 
 The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
+### Publishing without a stored API key (Trusted Publishing)
+
+Prefer this to a long-lived `NUGET__APIKEY`. The job exchanges a GitHub OIDC token for a
+nuget.org key that is valid for one hour and minted for that run, so there is no publishing
+secret to leak, rotate, or expire.
+
+1. On nuget.org, under your profile → **Trusted Publishing**, register a policy naming the
+   repository owner and repository.
+2. Grant `id-token: write` in the calling workflow — a reusable workflow can never elevate its
+   caller's token, so the caller must request it.
+3. Pass `trusted-publishing: true` and `nuget-user` (your nuget.org **profile name**, not the
+   sign-in email).
+
+```yaml
+jobs:
+  release:
+    permissions:
+      contents: write
+      id-token: write
+    uses: purview-dev/build/.github/workflows/purview-release.yml@<sha>
+    with:
+      release-mode: NuGet
+      build-version: "0.8.0"
+      trusted-publishing: true
+      nuget-user: your-nuget-profile-name
+```
+
+Once this is in place, remove the `NUGET__APIKEY` secret from the caller. While
+`trusted-publishing` is on, the workflow deliberately blanks `NUGET_APIKEY`: the tool prefers it
+over `NUGET_API_KEY`, so a leftover long-lived secret would otherwise keep publishing the old way
+while the configuration looked migrated.
+
+Trusted Publishing is not "no API key" — the exchange produces one. If no key reaches the
+pipeline with `trusted-publishing: true`, the publish fails with a message pointing at the login
+step rather than attempting an unauthenticated push.
+
+### Pin `build-version`
+
+Omitting `build-version` installs and executes **whatever is latest on nuget.org at job time**.
+That is convenient and it is also the largest supply-chain surface this pipeline has, so the
+workflows now emit a warning when it happens. Pin it, and let Dependabot move it.
+
 ### Minimal repository setup (composite action)
 
 ```yaml

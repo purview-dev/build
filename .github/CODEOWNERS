@@ -1,0 +1,13 @@
+# Review routing. The last matching pattern wins.
+*                       @kieronlanning
+
+# These run in every purview-dev repository, with that repository's token and secrets.
+# No change here is incidental.
+/.github/workflows/     @kieronlanning
+/.github/actions/       @kieronlanning
+/SECURITY.md            @kieronlanning
+
+# Publishing, credentials and release eligibility.
+/src/src/Build/Modules/PublishNuGetModule.cs      @kieronlanning
+/src/src/Build/Settings/NuGetSettings.cs          @kieronlanning
+/src/src/Build/Configuration/                     @kieronlanning

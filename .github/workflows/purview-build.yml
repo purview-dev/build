@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -96,6 +96,11 @@ jobs:
       - name: Resolve the .NET SDK version
         id: resolve-sdk
         shell: bash
+        # Caller input reaches the script through env, never by interpolating an expression into the script: the
+        # value is substituted into the script text before bash sees it, so a crafted input would
+        # run as shell.
+        env:
+          INPUT_DOTNET_VERSION: ${{ inputs.dotnet-version }}
         run: |
           set -euo pipefail
 
@@ -108,15 +113,15 @@ jobs:
             echo "global.json pins $pinned; installing that."
             echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
           else
-            echo "global.json pins no sdk.version; using the dotnet-version input (${{ inputs.dotnet-version }})."
-            echo "dotnet-version=${{ inputs.dotnet-version }}" >> "$GITHUB_OUTPUT"
+            echo "global.json pins no sdk.version; using the dotnet-version input ($INPUT_DOTNET_VERSION)."
+            echo "dotnet-version=$INPUT_DOTNET_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       # Registered before the tool install so a build-version that exists only on GitHub Packages (a
       # version NuGet.org has not indexed yet) is resolvable. It is also before the repository's own
@@ -136,12 +141,20 @@ jobs:
         env:
           # Resolves the %GITHUB_TOKEN% macro when the organisation read token was not used.
           GITHUB_TOKEN: ${{ github.token }}
+          INPUT_BUILD_VERSION: ${{ inputs.build-version }}
+          TOOL_PATH: ${{ runner.temp }}/purview-build
         run: |
-          VERSION_ARGS=""
-          if [ -n "${{ inputs.build-version }}" ]; then
-            VERSION_ARGS="--version ${{ inputs.build-version }}"
+          set -euo pipefail
+
+          # Quoted and passed as distinct arguments, not word-split from a string. Leaving
+          # build-version empty installs whatever is latest on nuget.org at job time and runs it,
+          # so callers should pin it.
+          if [ -n "$INPUT_BUILD_VERSION" ]; then
+            dotnet tool install Purview.Build --tool-path "$TOOL_PATH" --version "$INPUT_BUILD_VERSION"
+          else
+            echo "::warning title=Unpinned build tool::No build-version was supplied, so the latest Purview.Build on nuget.org will be installed and executed. Pin build-version for a reproducible build."
+            dotnet tool install Purview.Build --tool-path "$TOOL_PATH"
           fi
-          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
       - name: Run shared build
         env:
@@ -155,20 +168,24 @@ jobs:
           Build__RunLint: ${{ inputs.run-lint }}
           Build__RunPack: ${{ inputs.run-pack }}
           Build__ValidatePack: ${{ inputs.validate-pack }}
+          INPUT_TEST_FILTER: ${{ inputs.test-filter }}
+          INPUT_TEST_PROJECTS: ${{ inputs.test-projects }}
+          INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+          TOOL_PATH: ${{ runner.temp }}/purview-build
         run: |
+          set -euo pipefail
+
           # Only forward the optional test settings when the caller provides them.
           # Setting these to empty would override a consuming repo's purview-build.json
           # (env vars take precedence over the JSON config) and silently disable the filter.
-          if [ -n "${{ inputs.test-filter }}" ]; then
-            export Build__TestFilter="${{ inputs.test-filter }}"
-          fi
-          if [ -n "${{ inputs.test-projects }}" ]; then
-            export Build__TestProjects="${{ inputs.test-projects }}"
-          fi
-          if [ -n "${{ inputs.config-path }}" ]; then
-            export PURVIEW_BUILD_CONFIG="${{ inputs.config-path }}"
-          fi
-          "${{ runner.temp }}/purview-build/purview-build"
+          #
+          # Assigned from env rather than interpolated into the script: these come from the
+          # calling repository, and an inline expression would be substituted into the shell source text.
+          [ -z "$INPUT_TEST_FILTER" ] || export Build__TestFilter="$INPUT_TEST_FILTER"
+          [ -z "$INPUT_TEST_PROJECTS" ] || export Build__TestProjects="$INPUT_TEST_PROJECTS"
+          [ -z "$INPUT_CONFIG_PATH" ] || export PURVIEW_BUILD_CONFIG="$INPUT_CONFIG_PATH"
+
+          "$TOOL_PATH/purview-build"
 
       # A composite action cannot declare a post-step, so cleanup belongs to the workflow. Hosted
       # runners discard the user-level configuration with the VM; self-hosted runners do not.

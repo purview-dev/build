@@ -50,10 +50,20 @@ on:
         required: false
         type: string
       trusted-publishing:
-        description: Use NuGet Trusted Publishing (no API key) instead of an API key.
+        description: >-
+          Use NuGet Trusted Publishing instead of a stored API key. The job exchanges a GitHub
+          OIDC token for a short-lived nuget.org key, so no long-lived secret is involved. The
+          caller must grant `id-token: write`, and nuget.org must have a Trusted Publishing policy
+          registered for this repository.
         required: false
         default: false
         type: boolean
+      nuget-user:
+        description: >-
+          nuget.org profile name that owns the Trusted Publishing policy. This is the profile name,
+          not the sign-in email. Required when trusted-publishing is true.
+        required: false
+        type: string
       run-tests:
         description: Enable discovered tests (Build__RunTests).
         required: false
@@ -101,6 +111,10 @@ permissions:
   # Publishing to GitHub Packages needs packages: write. A caller that declares its own permissions
   # block must grant it too: a reusable workflow can never elevate the caller's token.
   packages: write
+  # Required for Trusted Publishing: the OIDC token is what nuget.org exchanges for a short-lived
+  # key. Requesting it does not create one unless a step asks, so this is inert when
+  # trusted-publishing is false. A caller with its own permissions block must grant it too.
+  id-token: write
 
 jobs:
   release:
@@ -109,10 +123,6 @@ jobs:
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      # Consumer repos historically store the key under NUGET__APIKEY; some use NUGET_APIKEY.
-      # The tool reads the plain process env vars NUGET_APIKEY / NUGET_API_KEY.
-      NUGET_APIKEY: ${{ secrets.NUGET_APIKEY }}
-      NUGET_API_KEY: ${{ secrets.NUGET__APIKEY }}
       Release__Mode: ${{ inputs.release-mode }}
       Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
       NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
@@ -126,7 +136,7 @@ jobs:
       Build__RunPack: ${{ inputs.run-pack }}
       Build__ValidatePack: ${{ inputs.validate-pack }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Eligibility is judged against the tags that already exist, so the full tag list
           # has to be present before the tool evaluates anything.
@@ -138,6 +148,11 @@ jobs:
       - name: Resolve the .NET SDK version
         id: resolve-sdk
         shell: bash
+        # Caller input reaches the script through env, never by interpolating an expression into the script: the
+        # value is substituted into the script text before bash sees it, so a crafted input would
+        # run as shell.
+        env:
+          INPUT_DOTNET_VERSION: ${{ inputs.dotnet-version }}
         run: |
           set -euo pipefail
 
@@ -150,37 +165,51 @@ jobs:
             echo "global.json pins $pinned; installing that."
             echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
           else
-            echo "global.json pins no sdk.version; using the dotnet-version input (${{ inputs.dotnet-version }})."
-            echo "dotnet-version=${{ inputs.dotnet-version }}" >> "$GITHUB_OUTPUT"
+            echo "global.json pins no sdk.version; using the dotnet-version input ($INPUT_DOTNET_VERSION)."
+            echo "dotnet-version=$INPUT_DOTNET_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Forward optional inputs
         shell: bash
+        env:
+          INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+          INPUT_ELIGIBILITY_POLICY: ${{ inputs.eligibility-policy }}
+          INPUT_RELEASE_CHANNEL: ${{ inputs.release-channel }}
+          INPUT_VERSION_SOURCE: ${{ inputs.version-source }}
+          INPUT_TEST_FILTER: ${{ inputs.test-filter }}
         run: |
+          set -euo pipefail
+
           # Only forward optional settings the caller actually provided. Setting any of these to
           # the empty string would override the consuming repo's purview-build.json, because
           # environment variables take precedence over the JSON config (see commit 4d72bf7).
-          if [ -n "${{ inputs.config-path }}" ]; then
-            echo "PURVIEW_BUILD_CONFIG=${{ inputs.config-path }}" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${{ inputs.eligibility-policy }}" ]; then
-            echo "Release__Eligibility__Policy=${{ inputs.eligibility-policy }}" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${{ inputs.release-channel }}" ]; then
-            echo "Release__Channel=${{ inputs.release-channel }}" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${{ inputs.version-source }}" ]; then
-            echo "Version__Source=${{ inputs.version-source }}" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${{ inputs.test-filter }}" ]; then
-            echo "Build__TestFilter=${{ inputs.test-filter }}" >> "$GITHUB_ENV"
-          fi
+          #
+          # Written through a heredoc with a random delimiter, not `echo NAME=value`. A value
+          # containing a newline would otherwise inject arbitrary variables into every later step,
+          # and these values come from the calling repository.
+          forward() {
+            local name="$1" value="$2"
+            [ -n "$value" ] || return 0
+            local delimiter
+            delimiter="EOF_$(openssl rand -hex 16)"
+            {
+              printf '%s<<%s\n' "$name" "$delimiter"
+              printf '%s\n' "$value"
+              printf '%s\n' "$delimiter"
+            } >> "$GITHUB_ENV"
+          }
+
+          forward PURVIEW_BUILD_CONFIG "$INPUT_CONFIG_PATH"
+          forward Release__Eligibility__Policy "$INPUT_ELIGIBILITY_POLICY"
+          forward Release__Channel "$INPUT_RELEASE_CHANNEL"
+          forward Version__Source "$INPUT_VERSION_SOURCE"
+          forward Build__TestFilter "$INPUT_TEST_FILTER"
 
       # Before the tool install, so a build-version that exists only on GitHub Packages is resolvable.
       # A fork pull request cannot read the private feed (no organisation secrets), so leave it on
@@ -195,12 +224,21 @@ jobs:
 
       - name: Install shared build
         shell: bash
+        env:
+          INPUT_BUILD_VERSION: ${{ inputs.build-version }}
+          TOOL_PATH: ${{ runner.temp }}/purview-build
         run: |
-          VERSION_ARGS=""
-          if [ -n "${{ inputs.build-version }}" ]; then
-            VERSION_ARGS="--version ${{ inputs.build-version }}"
+          set -euo pipefail
+
+          # Quoted and passed as distinct arguments, not word-split from a string. Leaving
+          # build-version empty installs whatever is latest on nuget.org at job time and runs it,
+          # so callers should pin it.
+          if [ -n "$INPUT_BUILD_VERSION" ]; then
+            dotnet tool install Purview.Build --tool-path "$TOOL_PATH" --version "$INPUT_BUILD_VERSION"
+          else
+            echo "::warning title=Unpinned build tool::No build-version was supplied, so the latest Purview.Build on nuget.org will be installed and executed. Pin build-version for a reproducible release."
+            dotnet tool install Purview.Build --tool-path "$TOOL_PATH"
           fi
-          dotnet tool install Purview.Build --tool-path "${{ runner.temp }}/purview-build" $VERSION_ARGS
 
       # The version is reported, never decided: eligibility remains the tool's evaluation below. It is
       # used only to protect the just-published version from the package cleanup.
@@ -235,14 +273,38 @@ jobs:
         if: steps.eligibility.outputs.verdict == 'Fail'
         shell: bash
         run: |
-          echo "::error title=Release not eligible::$(cat eligibility-message.txt)"
+          set -euo pipefail
+
+          # Workflow commands are parsed out of the log line, so a message containing a newline
+          # and a `::` sequence would be interpreted as a command rather than printed. Escape the
+          # message to a single line before handing it over.
+          message="$(tr '\n' ' ' < eligibility-message.txt | sed 's/::/:﹕/g')"
+          echo "::error title=Release not eligible::${message}"
           exit 1
 
       - name: Skip release
         if: steps.eligibility.outputs.verdict == 'Skip'
         shell: bash
         run: |
-          echo "::notice title=Release skipped::$(cat eligibility-message.txt)"
+          set -euo pipefail
+          message="$(tr '\n' ' ' < eligibility-message.txt | sed 's/::/:﹕/g')"
+          echo "::notice title=Release skipped::${message}"
+
+      - name: Require a nuget.org profile for Trusted Publishing
+        if: steps.eligibility.outputs.verdict == 'Release' && inputs.trusted-publishing && inputs.nuget-user == ''
+        shell: bash
+        run: |
+          echo "::error title=nuget-user is required::trusted-publishing is enabled, but no nuget-user was supplied. Pass the nuget.org profile name that owns the Trusted Publishing policy."
+          exit 1
+
+      # Immediately before the push: the minted key is valid for one hour, and each OIDC token can
+      # be exchanged exactly once.
+      - name: Exchange the OIDC token for a short-lived nuget.org key
+        id: nuget-login
+        if: steps.eligibility.outputs.verdict == 'Release' && inputs.trusted-publishing
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ inputs.nuget-user }}
 
       - name: Run release pipeline
         if: steps.eligibility.outputs.verdict == 'Release'
@@ -251,8 +313,19 @@ jobs:
           # The evaluated decision, not the raw input: a verdict that is not "Release" resolves to
           # None, so the publish and release modules skip even if this step were reached.
           Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
+          # Credentials are scoped to the one step that publishes, rather than exported for the
+          # whole job where every action and script could read them.
+          #
+          # Trusted Publishing wins outright when enabled. The tool prefers NUGET_APIKEY over
+          # NUGET_API_KEY, so a repository that still holds a long-lived secret would otherwise
+          # shadow the short-lived key with it and keep publishing the old way while appearing to
+          # have migrated. Blanking it is what makes the migration real.
+          NUGET_APIKEY: ${{ inputs.trusted-publishing && '' || secrets.NUGET_APIKEY }}
+          NUGET_API_KEY: ${{ inputs.trusted-publishing && steps.nuget-login.outputs.NUGET_API_KEY || secrets.NUGET__APIKEY }}
+          TOOL_PATH: ${{ runner.temp }}/purview-build
         run: |
-          "${{ runner.temp }}/purview-build/purview-build"
+          set -euo pipefail
+          "$TOOL_PATH/purview-build"
 
       # Housekeeping on the mirror only: NuGet.org keeps every version, so this is best effort and
       # never fails a release. Only reached when the pipeline (both registries) succeeded.
