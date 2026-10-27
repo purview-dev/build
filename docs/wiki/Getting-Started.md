@@ -102,7 +102,7 @@ restore, so nothing in the repository needs to change.
 Publishing to it is **opt-in**, directly from the repository:
 
 1. Add `permissions: { contents: write, packages: write }` to `.github/workflows/release.yml`
-   (a reusable workflow cannot elevate its caller).
+   (a reusable workflow cannot elevate its caller, and declares no permissions of its own).
 2. Set the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES=true`.
 
 The next eligible release then pushes the same packages to NuGet.org and GitHub Packages. No

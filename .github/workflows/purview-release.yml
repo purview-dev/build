@@ -106,15 +106,18 @@ on:
       PURVIEW_PACKAGES_READ_TOKEN:
         required: false
 
-permissions:
-  contents: write
-  # Publishing to GitHub Packages needs packages: write. A caller that declares its own permissions
-  # block must grant it too: a reusable workflow can never elevate the caller's token.
-  packages: write
-  # Required for Trusted Publishing: the OIDC token is what nuget.org exchanges for a short-lived
-  # key. Requesting it does not create one unless a step asks, so this is inert when
-  # trusted-publishing is false. A caller with its own permissions block must grant it too.
-  id-token: write
+# Deliberately no `permissions:` block: callers own their token, and the jobs below inherit it.
+#
+# A reusable workflow can never elevate its caller, so a block here grants nothing. It only adds a
+# ceiling that GitHub validates against the caller *statically*, before any input is read — so a
+# scope needed by one optional feature becomes mandatory for every caller. `id-token` is the trap:
+# GitHub grants it `none` by default whatever the repository's default-token setting, so declaring
+# `id-token: write` here failed every caller at parse time with "is only allowed 'id-token: none'",
+# including callers that never asked for Trusted Publishing.
+#
+# What the jobs need, the caller grants: `contents: write` to tag and create the release,
+# `packages: write` to publish to GitHub Packages, `id-token: write` for `trusted-publishing: true`.
+# See the Getting Started and Release Flow wiki pages.
 
 jobs:
   release:

@@ -126,8 +126,8 @@ changing a package to Internal is a per-package UI action (no REST endpoint).
 
 Publication is additive — the same packed artifacts go to both feeds. To opt a repository in:
 
-1. In `.github/workflows/release.yml`, grant what the reusable release workflow declares (a reusable
-   workflow cannot elevate its caller):
+1. In `.github/workflows/release.yml`, grant what the publish step needs (a reusable workflow
+   cannot elevate its caller, and `purview-release.yml` declares no permissions of its own):
 
    ```yaml
    permissions:

@@ -43,6 +43,13 @@ Out of scope:
 - **Publishing credentials are scoped to the publishing step**, not exported at job level.
 - **Trusted Publishing is supported** (`trusted-publishing: true` plus `nuget-user`), exchanging a
   GitHub OIDC token for a nuget.org key valid for one hour. Prefer it to a stored API key.
+- **The reusable workflows do not cap the caller's token.** `purview-release.yml` declares no
+  `permissions:` block, so its jobs inherit whatever the caller granted, and the caller owns the
+  ceiling. A block there would not restrict a permissive caller in any useful way — it is validated
+  statically against the caller, so it can only fail runs, never reduce them — and declaring a
+  scope GitHub withholds by default (`id-token`) fails every caller that does not use it. Grant the
+  release job `contents: write`, plus `packages: write` and `id-token: write` only when the
+  corresponding feature is on.
 - **`build-version` should be pinned by every caller.** Left empty, the workflow installs and
   executes whatever is latest on nuget.org at job time; it now emits a warning when that happens.
 
