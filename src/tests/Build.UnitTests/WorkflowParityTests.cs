@@ -196,6 +196,108 @@ public partial class WorkflowParityTests
 	}
 
 	[Test]
+	public async Task ReleaseWorkflow_DeclaresNoPermissionsBlock()
+	{
+		// Arrange
+		// GitHub validates a reusable workflow's permissions against the caller statically, before an
+		// input is read, and a reusable workflow can never elevate its caller — so a block here grants
+		// nothing and can only fail runs. `id-token` is the trap: it is `none` by default whatever the
+		// repository's default-token setting, so declaring `id-token: write` for the optional
+		// Trusted Publishing path failed every caller at parse time.
+		var content = ReadWorkflow(".github/workflows/purview-release.yml");
+
+		// Act
+		var hasPermissions = PermissionsBlock().IsMatch(content);
+
+		// Assert
+		await Assert
+			.That(hasPermissions)
+			.IsFalse()
+			.Because(
+				"a workflow-level permissions block in purview-release.yml makes every caller that "
+					+ "does not grant the same scopes fail validation, including callers of optional "
+					+ "features they never enabled. Callers own their token."
+			);
+	}
+
+	[Test]
+	[MethodDataSource(nameof(DocumentedCallerPermissions))]
+	public async Task Documentation_CallerPermissionBlockGrantsEveryScopeTheReleaseNeeds(
+		string file,
+		int line,
+		string block
+	)
+	{
+		// Arrange
+		// Every permissions block in the documentation is a release caller's: the build caller needs
+		// none. A partial block is the failure mode this guards — one example granted contents and
+		// id-token but not packages, so a repository that followed it published to nuget.org and then
+		// failed on the GitHub Packages push.
+		string[] required = ["contents: write", "packages: write"];
+
+		// Act
+		var missing = required.Where(scope => !block.Contains(scope, StringComparison.Ordinal)).ToList();
+
+		// Assert
+		await Assert
+			.That(missing)
+			.IsEmpty()
+			.Because(
+				$"the caller permissions block at {file}:{line} omits {string.Join(", ", missing)}. A "
+					+ "documented release caller must grant contents: write to tag and create the "
+					+ "release and packages: write for the GitHub Packages mirror, which a repository "
+					+ "variable turns on without touching this snippet."
+			);
+	}
+
+	public static IEnumerable<Func<(string, int, string)>> DocumentedCallerPermissions()
+	{
+		var root = RepositoryRoot();
+
+		string[] files =
+		[
+			.. Directory.EnumerateFiles(Path.Combine(root, "docs", "wiki"), "*.md", SearchOption.AllDirectories),
+			.. Directory.EnumerateFiles(Path.Combine(root, "skills"), "SKILL.md", SearchOption.AllDirectories),
+			Path.Combine(root, "README.md"),
+		];
+
+		foreach (var file in files)
+		{
+			var content = File.ReadAllText(file);
+			var relative = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');
+
+			foreach (Match match in DocumentedPermissions().Matches(content))
+			{
+				var block = match.Groups["body"].Value;
+
+				// Read-only blocks belong to a build caller, which needs nothing from this rule.
+				if (!block.Contains(": write", StringComparison.Ordinal))
+					continue;
+
+				var line = content.Take(match.Index).Count(character => character == '\n') + 1;
+
+				yield return () => (relative, line, block);
+			}
+		}
+	}
+
+	[Test]
+	public async Task DocumentationChecks_ActuallyFindSomethingToCheck()
+	{
+		// Arrange
+		// Guards the guard: a regex matching no documented block would make the parity test above pass
+		// without reading anything.
+		var blocks = DocumentedCallerPermissions().Select(source => source()).ToList();
+
+		// Act
+		var files = blocks.Select(block => block.Item1).Distinct(StringComparer.Ordinal).ToList();
+
+		// Assert
+		await Assert.That(blocks).IsNotEmpty();
+		await Assert.That(files).Contains("README.md");
+	}
+
+	[Test]
 	public async Task ReleaseWorkflow_DeclaresEveryNewInput()
 	{
 		// Arrange
@@ -388,4 +490,20 @@ public partial class WorkflowParityTests
 
 	[GeneratedRegex(@"^concurrency:", RegexOptions.Multiline)]
 	private static partial Regex ConcurrencyBlock();
+
+	/// <summary>
+	/// A <c>permissions:</c> key at any level — workflow or job. Both are validated against the
+	/// caller, so both break callers in the same way.
+	/// </summary>
+	[GeneratedRegex(@"^[ \t]*permissions:", RegexOptions.Multiline)]
+	private static partial Regex PermissionsBlock();
+
+	/// <summary>
+	/// A documented <c>permissions:</c> block, in either the block form used inside fenced YAML or
+	/// the inline flow form used in prose.
+	/// </summary>
+	[GeneratedRegex(
+		@"permissions:[ \t]*(?:\{(?<body>[^}]*)\}|\r?\n(?<body>(?:[ \t]*#[^\n]*\r?\n|[ \t]+[a-z][a-z-]*:[ \t]*[A-Za-z]+[ \t]*\r?\n?)+))"
+	)]
+	private static partial Regex DocumentedPermissions();
 }

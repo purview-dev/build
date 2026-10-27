@@ -80,7 +80,8 @@ secret to leak, rotate, or expire.
 1. On nuget.org, under your profile → **Trusted Publishing**, register a policy naming the
    repository owner and repository.
 2. Grant `id-token: write` in the calling workflow — a reusable workflow can never elevate its
-   caller's token, so the caller must request it.
+   caller's token, so the caller must request it. GitHub grants `id-token` as `none` by default
+   however permissive the repository's default token is, so this step is never optional.
 3. Pass `trusted-publishing: true` and `nuget-user` (your nuget.org **profile name**, not the
    sign-in email).
 
@@ -89,6 +90,10 @@ jobs:
   release:
     permissions:
       contents: write
+      # Trusted Publishing replaces the nuget.org key, not the GitHub Packages mirror, and the
+      # mirror is driven by a repository variable this snippet cannot see. Without it an opted-in
+      # repository publishes to nuget.org and then fails on the second push.
+      packages: write
       id-token: write
     uses: purview-dev/build/.github/workflows/purview-release.yml@<sha>
     with:
@@ -284,7 +289,8 @@ shared release workflow. Nothing in `.config/purview-build.json`, `package.json`
 or the repository's `nuget.config` needs to change.
 
 1. **Let the release workflow write packages.** A reusable workflow can never grant more than its
-   caller. In the repository's `.github/workflows/release.yml`:
+   caller, and it declares no permissions of its own. In the repository's
+   `.github/workflows/release.yml`:
 
    ```yaml
    permissions:

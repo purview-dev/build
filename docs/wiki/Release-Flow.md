@@ -102,8 +102,9 @@ PURVIEW_PUBLISH_GITHUB_PACKAGES=true
 
 To opt a repository in:
 
-1. Grant the caller's release job the permission the reusable workflow declares. Reusable workflows
-   cannot elevate a caller, so add to the repository's `.github/workflows/release.yml`:
+1. Grant the caller's release job the permission the publish step needs. Reusable workflows cannot
+   elevate a caller and `purview-release.yml` declares no permissions of its own, so add to the
+   repository's `.github/workflows/release.yml`:
 
    ```yaml
    permissions:
