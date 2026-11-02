@@ -106,6 +106,30 @@ inputs:
       uses the organisation token has to pass it here.
     required: false
     default: ""
+  source-mapping:
+    description: >-
+      Optional semicolon-separated package ID patterns pinned to GitHub Packages. Pass the
+      repository variable `PURVIEW_NUGET_SOURCE_MAPPING`; a composite action has no `vars` context.
+    required: false
+    default: ""
+  github-packages:
+    description: >-
+      Publish the same packages to GitHub Packages as well. Pass `true` only when the repository
+      variable `PURVIEW_PUBLISH_GITHUB_PACKAGES` is `true`; a composite action has no `vars` context.
+    required: false
+    default: "false"
+  github-packages-keep-versions:
+    description: >-
+      Newest versions per package always kept by the mirror cleanup (repository variable
+      `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS`).
+    required: false
+    default: "1"
+  github-packages-retention-hours:
+    description: >-
+      How long a mirrored version survives after publication (repository variable
+      `PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS`).
+    required: false
+    default: "24"
 
 runs:
   using: composite
@@ -159,7 +183,7 @@ runs:
       with:
         namespace: ${{ github.repository_owner }}
         token: ${{ inputs.packages-read-token || github.token }}
-        source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+        source-mapping: ${{ inputs.source-mapping }}
 
     - name: Install shared build
       shell: bash
@@ -263,7 +287,7 @@ runs:
         Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
         Release__UploadArtifacts: ${{ inputs.upload-artifacts }}
         NuGet__TrustedPublishing: ${{ inputs.trusted-publishing }}
-        NuGet__GitHubPackages__Enabled: ${{ vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true' }}
+        NuGet__GitHubPackages__Enabled: ${{ inputs.github-packages }}
         NuGet__GitHubPackages__Owner: ${{ github.repository_owner }}
         Build__RunTests: ${{ inputs.run-tests }}
         Build__RunLint: ${{ inputs.run-lint }}
@@ -311,12 +335,12 @@ runs:
     # Housekeeping on the mirror only: NuGet.org keeps every version, so this is best effort and
     # never fails a release. Only reached when the pipeline (both registries) succeeded.
     - name: Prune older GitHub Packages versions
-      if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'
+      if: steps.eligibility.outputs.verdict == 'Release' && steps.eligibility.outputs.release_mode == 'NuGet' && inputs.github-packages == 'true'
       uses: purview-dev/build/actions/prune-github-packages@main
       with:
         namespace: ${{ github.repository_owner }}
-        keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
-        retention-hours: ${{ vars.PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS || '24' }}
+        keep-versions: ${{ inputs.github-packages-keep-versions }}
+        retention-hours: ${{ inputs.github-packages-retention-hours }}
         version: ${{ steps.version.outputs.version }}
 
     # A composite action cannot declare a post-step, so cleanup lives here and runs even when a

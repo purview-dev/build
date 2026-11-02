@@ -508,6 +508,46 @@ public partial class WorkflowParityTests
 			);
 	}
 
+	[Test]
+	public async Task CompositeActions_UseOnlyContextsGitHubAllowsThem()
+	{
+		// Arrange
+		// A composite action has no `vars` or `secrets` context. Referencing either makes GitHub reject
+		// the manifest — "Unrecognized named-value: 'vars'" — while loading the action, before any step
+		// runs. actionlint only parses workflow files, so nothing else catches it, and the failure only
+		// appears when a consumer's release actually loads the action.
+		var root = RepositoryRoot();
+		List<string> actions =
+		[
+			.. Directory.EnumerateFiles(Path.Combine(root, "actions"), "action.yml", SearchOption.AllDirectories),
+			.. Directory.EnumerateFiles(
+				Path.Combine(root, ".github", "actions"),
+				"action.yml",
+				SearchOption.AllDirectories
+			),
+		];
+
+		// Act
+		var offenders = actions
+			.Where(path => ForbiddenActionContext().IsMatch(File.ReadAllText(path)))
+			.Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
+			.ToList();
+
+		// Assert
+		await Assert.That(actions).IsNotEmpty().Because("the guard below would otherwise be vacuous.");
+		await Assert
+			.That(offenders)
+			.IsEmpty()
+			.Because(
+				$"{string.Join(", ", offenders)} reference `vars` or `secrets` from a composite action. "
+					+ "GitHub has no such context there and fails to load the manifest. Pass the value in as "
+					+ "an input from the calling workflow."
+			);
+	}
+
+	[GeneratedRegex(@"\$\{\{[^}]*\b(?:vars|secrets)\.")]
+	private static partial Regex ForbiddenActionContext();
+
 	static string ReadWorkflow(string relativePath)
 	{
 		var root = RepositoryRoot();

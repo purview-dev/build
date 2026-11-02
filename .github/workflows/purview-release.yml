@@ -127,6 +127,11 @@ jobs:
           validate-pack: ${{ inputs.validate-pack }}
           test-filter: ${{ inputs.test-filter }}
           upload-artifacts: ${{ inputs.upload-artifacts }}
-          # A composite action has no `secrets` context, so the credentials are handed over here.
+          # A composite action has no `secrets` or `vars` context, so credentials and repository
+          # variables are handed over here.
           nuget-api-key: ${{ secrets.NUGET_APIKEY || secrets.NUGET__APIKEY }}
           packages-read-token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+          github-packages: ${{ vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true' }}
+          github-packages-keep-versions: ${{ vars.PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS || '1' }}
+          github-packages-retention-hours: ${{ vars.PURVIEW_GITHUB_PACKAGES_RETENTION_HOURS || '24' }}
