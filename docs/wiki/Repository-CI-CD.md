@@ -32,16 +32,16 @@ Runs on push to `main` and is serialized by its own `concurrency` group (`purvie
 2. Configure NuGet sources with the shared `./actions/nuget-sources` action (nuget.org + the organisation feed).
 3. Restore and build `src/Build.slnx` with `--warnaserror`.
 4. Pack the tool from source with `-p:ContinuousIntegrationBuild=true`.
-5. Verify the `NUGET__APIKEY` secret is set.
-6. Install the packed tool.
-7. **Evaluate eligibility** by running the freshly installed `purview-build release-explain --format=json` and reading the verdict. `Skip` finishes the job green, `Fail` fails it with the rule's message, and `Release` continues.
-8. **Run the release pipeline** with `Release__Mode` taken from the evaluated decision, plus `NuGet__FeedUrl=https://api.nuget.org/v3/index.json`, `Release__UploadArtifacts=true`, `Build__RunTests=false`, `Build__RunLint=false`, and `Build__ValidatePack=true`, passing `GITHUB_TOKEN` and `NUGET_APIKEY`. The workflow maps `PURVIEW_PUBLISH_GITHUB_PACKAGES` onto `NuGet__GitHubPackages__Enabled` and passes the repository owner, so setting the variable makes this repository dual-publish; leaving it unset keeps NuGet.org-only publication.
+5. Install the packed tool.
+6. **Evaluate eligibility** by running the freshly installed `purview-build release-explain --format=json` and reading the verdict. `Skip` finishes the job green, `Fail` fails it with the rule's message, and `Release` continues.
+7. **Exchange the OIDC token for a short-lived nuget.org key** (`NuGet/login`), immediately before the push: the key lives for one hour and each token can be exchanged once.
+8. **Run the release pipeline** with `Release__Mode` taken from the evaluated decision, plus `NuGet__FeedUrl=https://api.nuget.org/v3/index.json`, `Release__UploadArtifacts=true`, `Build__RunTests=false`, `Build__RunLint=false`, `Build__ValidatePack=true`, `NuGet__TrustedPublishing=true`, and `GITHUB_TOKEN`. The minted key arrives as `NUGET_API_KEY`, and `NUGET_APIKEY` is blanked so a leftover secret can never shadow it. The workflow maps `PURVIEW_PUBLISH_GITHUB_PACKAGES` onto `NuGet__GitHubPackages__Enabled` and passes the repository owner, so setting the variable makes this repository dual-publish; leaving it unset keeps NuGet.org-only publication.
 9. **Prune older GitHub Packages versions** when the variable is set: keep the newest
    `PURVIEW_GITHUB_PACKAGES_KEEP_VERSIONS` (default 1), never the version just released. Best effort —
    NuGet.org keeps every version.
 10. Remove the temporary NuGet sources (`if: always()`).
 
-The workflow declares `contents: write` and `packages: write`. This repository dogfoods the eligibility evaluation as well as the pipeline: the `git rev-parse` tag check that used to live in this workflow is gone, replaced by the tool's own rules.
+The workflow declares `contents: write`, `packages: write`, and `id-token: write` — the last is what the OIDC exchange needs, and GitHub withholds it by default. This repository dogfoods the eligibility evaluation as well as the pipeline: the `git rev-parse` tag check that used to live in this workflow is gone, replaced by the tool's own rules.
 
 The tool therefore publishes the immutable package to nuget.org (and, when opted in, GitHub Packages) and tags and releases itself (`v{version}` + generated-notes GitHub release with the package attached) — exactly like every other purview-dev repository. Maintainers bump the `package.json` version and merge; they do not create release tags manually.
 

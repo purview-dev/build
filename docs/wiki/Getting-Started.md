@@ -1,6 +1,6 @@
 # Getting Started
 
-`Purview.Build` is consumed from a repository that owns its own configuration. The pipeline code lives here; consumers reference the composite action or one of the reusable workflows (or run the tool locally) and configure it with `purview-build.json`.
+`Purview.Build` is consumed from a repository that owns its own configuration. The pipeline code lives here; consumers reference a composite action or one of the reusable workflows (or run the tool locally) and configure it with `purview-build.json`. Release uses the composite action, because Trusted Publishing validates the caller's own workflow file.
 
 ## Two independent version axes
 
@@ -33,16 +33,27 @@ name: Release
 on:
   push:
     branches: [main]
+permissions:
+  contents: write
+  packages: write
+  # nuget.org Trusted Publishing. GitHub withholds this scope by default, so the job must ask.
+  id-token: write
 concurrency:
   # Serialize releases; callers own concurrency (see Release Flow).
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # A composite action, so the OIDC claim nuget.org validates names this workflow file — which is
+      # what the Trusted Publishing policy is registered against. A reusable workflow cannot do this.
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          nuget-user: your-nuget-profile-name
+          packages-read-token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN }}
 ```
 
 For the **main-as-head / release-branch model**, point the release caller at the release branch instead:
@@ -64,19 +75,21 @@ on:
 
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-      eligibility-policy: TrunkReservesMinor
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          eligibility-policy: TrunkReservesMinor
+          nuget-user: your-nuget-profile-name
 ```
 
-The reusable release workflow asks the tool to evaluate eligibility and reads the verdict: an
-already-released version skips (the job finishes green), and a policy violation fails the job naming
-the rule. Merging `main` into `release` therefore releases exactly once. See
-[Release Models](Release-Models.md).
+The release action asks the tool to evaluate eligibility and reads the verdict: an already-released
+version skips (the job finishes green), and a policy violation fails the job naming the rule. Merging
+`main` into `release` therefore releases exactly once. See [Release Models](Release-Models.md).
 
-The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The shared entry points install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
 
 ## Minimal repository setup (composite action)
 
@@ -95,14 +108,15 @@ The action's `build-version` input is optional. When omitted, `dotnet tool insta
 
 ## GitHub Packages
 
-Restoring from the organisation's GitHub Packages feed is **automatic**: the shared action and both
-reusable workflows register it (authenticated with `GITHUB_TOKEN`) before the repository's first
-restore, so nothing in the repository needs to change.
+Restoring from the organisation's GitHub Packages feed is **automatic**: the shared entry points
+register it (authenticated with `GITHUB_TOKEN`) before the repository's first restore, so nothing in
+the repository needs to change.
 
 Publishing to it is **opt-in**, directly from the repository:
 
-1. Add `permissions: { contents: write, packages: write }` to `.github/workflows/release.yml`
-   (a reusable workflow cannot elevate its caller, and declares no permissions of its own).
+1. Add `permissions: { contents: write, packages: write, id-token: write }` to
+   `.github/workflows/release.yml` (neither a reusable workflow nor a composite action can elevate
+   its caller, and neither declares permissions of its own).
 2. Set the repository variable `PURVIEW_PUBLISH_GITHUB_PACKAGES=true`.
 
 The next eligible release then pushes the same packages to NuGet.org and GitHub Packages. No

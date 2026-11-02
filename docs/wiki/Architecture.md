@@ -9,7 +9,7 @@ The implementation is the generalized `PipelineCLI` that originated in `sourcege
 The repository additionally exposes:
 
 - a **composite action** (`.github/actions/purview-build`) that installs a pinned `Purview.Build` version and runs it, for repositories embedding the build in their own jobs, and
-- two **reusable workflows** (`purview-build.yml`, `purview-release.yml`) that wrap that logic with structured inputs/secrets, reducing a consumer to one reusable-workflow job plus `purview-build.json`.
+- a **composite action** for release (`actions/purview-release`) plus two **reusable workflows** (`purview-build.yml`, `purview-release.yml`) that wrap that logic with structured inputs/secrets, reducing a consumer to one `uses:` step plus `purview-build.json`. Release has to be the composite action: Trusted Publishing validates the caller's own workflow file, which a called workflow can never be.
 
 An MSBuild SDK remains a possible future companion for shared compile-time properties, analyzers, or package metadata. It should not own CI orchestration.
 

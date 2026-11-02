@@ -17,8 +17,8 @@ This repository currently contains a vendored copy of `build/PipelineCLI`. Migra
 }
 ```
 
-3. Replace `pr.yml` and `release.yml` with thin callers of `purview-dev/build/.github/workflows/purview-build.yml` and `.../purview-release.yml`, passing `build-version`. Keep the `[Category=Unit]` filter in the release caller.
-4. In the release caller set `release-mode: NuGet` and `secrets: inherit` (`NUGET_APIKEY` and `GITHUB_TOKEN` are read by the shared workflow).
+3. Replace `pr.yml` and `release.yml` with thin callers of `purview-dev/build/.github/workflows/purview-build.yml` and `purview-dev/build/actions/purview-release` (the release entry point is a composite action), passing `build-version`. Keep the `[Category=Unit]` filter in the release caller.
+4. In the release caller set `release-mode: NuGet`, grant `id-token: write`, and pass `trusted-publishing: true` plus `nuget-user`; no stored NuGet key is involved.
 5. Run the PR pipeline, then delete `build/PipelineCLI` and its pipeline-only central package declarations (`ModularPipelines*`, `NuGet.Packaging/Versioning`).
 
 The old solution path and unit-test filter are preserved exactly. Other repositories migrate by changing only the JSON paths/patterns; for example `build-sdk` can list unit and integration project globs in `Build:TestPatterns`.

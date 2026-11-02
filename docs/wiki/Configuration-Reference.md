@@ -123,7 +123,7 @@ command line
 | --- | --- |
 | `-v`, `--version` | Print the tool version and exit without running the pipeline. |
 | `-h`, `--help`, `-?` | Print usage, options, the probe order, and the resolved configuration path (or "none found"), then exit. |
-| `release-explain` | Print the release decision and exit without running any module. `--format=json` emits the stable contract the reusable workflow consumes. See [Local Development](Local-Development.md). |
+| `release-explain` | Print the release decision and exit without running any module. `--format=json` emits the stable contract the release action consumes. See [Local Development](Local-Development.md). |
 
 Failures are reported the way a CLI build tool reports them: the tool prints the failing module and that module's
 output, then exits with code 1. Set `PURVIEW_BUILD_STACKTRACE=1` to add stack traces when diagnosing the tool itself.

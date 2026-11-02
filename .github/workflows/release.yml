@@ -13,6 +13,10 @@ permissions:
   # The self-hosted release dogfoods the dual publication: the variable decides whether the extra
   # destination is used, and the token must be allowed to write it.
   packages: write
+  # nuget.org Trusted Publishing: the job exchanges this OIDC token for a short-lived key, so no
+  # long-lived publishing secret exists. GitHub grants `id-token` as `none` whatever the
+  # repository's default token setting, so this is never optional.
+  id-token: write
 
 concurrency:
   group: purview-build-release
@@ -68,15 +72,6 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           -p:PackageVersion=${{ steps.version.outputs.version }}
 
-      - name: Verify NuGet API key
-        env:
-          NUGET_APIKEY: ${{ secrets.NUGET__APIKEY }}
-        run: |
-          if [ -z "$NUGET_APIKEY" ]; then
-            echo "The NUGET__APIKEY secret is not set. It is required to publish Purview.Build to nuget.org." >&2
-            exit 1
-          fi
-
       # --source, not --add-source: the release must be produced by the tool built from this commit,
       # and --add-source leaves nuget.org able to satisfy the version instead.
       - name: Install packed tool
@@ -118,10 +113,26 @@ jobs:
           message="$(tr '\n' ' ' < eligibility-message.txt | sed 's/::/:﹕/g')"
           echo "::notice title=Release skipped::${message}"
 
+      # Immediately before the push: the minted key is valid for one hour, and each OIDC token can
+      # be exchanged exactly once. This job is this repository's own workflow, so the claim
+      # nuget.org validates against the policy is `.github/workflows/release.yml` here.
+      - name: Exchange the OIDC token for a short-lived nuget.org key
+        id: nuget-login
+        if: steps.eligibility.outputs.verdict == 'Release'
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          # The nuget.org profile name, not the sign-in email.
+          user: kieronlanning
+
       - name: Run release pipeline (builds, publishes and tags itself)
         if: steps.eligibility.outputs.verdict == 'Release'
         env:
-          NUGET_APIKEY: ${{ secrets.NUGET__APIKEY }}
+          # Trusted Publishing replaces the long-lived key outright. Blanking NUGET_APIKEY is what
+          # makes the migration real: the tool prefers it over NUGET_API_KEY, so a leftover secret
+          # would otherwise keep publishing the old way while the configuration looked migrated.
+          NUGET_APIKEY: ""
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          NuGet__TrustedPublishing: "true"
           Release__Mode: ${{ steps.eligibility.outputs.release_mode }}
           Release__UploadArtifacts: "true"
           NuGet__FeedUrl: https://api.nuget.org/v3/index.json

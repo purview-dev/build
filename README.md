@@ -12,8 +12,13 @@ Consuming repositories own configuration; they do not own pipeline source code. 
 The same implementation is available three ways:
 
 1. **`Purview.Build` dotnet tool** — NuGet package published to nuget.org. Run anywhere a .NET SDK exists (locally via `just`, in GitHub Actions, or another CI service).
-2. **Composite action** `purview-dev/build/.github/actions/purview-build` — for repositories that want the action embedded directly in one of their own jobs.
-3. **Reusable workflows** `purview-dev/build/.github/workflows/purview-build.yml` and `.../purview-release.yml` — thin `workflow_call` wrappers with structured inputs/secrets.
+2. **Composite actions** `purview-dev/build/.github/actions/purview-build` (build) and
+   `purview-dev/build/actions/purview-release` (release) — for repositories that want the pipeline
+   embedded directly in one of their own jobs. Release must use the action, not a reusable workflow,
+   because Trusted Publishing only matches the caller's own workflow file.
+3. **Reusable workflows** `purview-dev/build/.github/workflows/purview-build.yml` and
+   `.../purview-release.yml` — thin `workflow_call` wrappers with structured inputs/secrets. The
+   release workflow forwards to the action above and cannot use Trusted Publishing.
 
 ## Minimal repository setup (reusable workflow)
 
@@ -47,16 +52,29 @@ name: Release
 on:
   push:
     branches: [main]
+permissions:
+  contents: write   # tag the release and create the GitHub release
+  packages: write   # the GitHub Packages mirror, when the repository variable opts in
+  id-token: write   # nuget.org Trusted Publishing — GitHub withholds this by default
 concurrency:
   # Serialize releases; callers own concurrency (see docs/wiki/Release-Flow.md).
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # This is a composite action, not a reusable workflow. nuget.org validates the OIDC
+      # `job_workflow_ref` claim against the registered Trusted Publishing policy, and inside a
+      # called workflow that claim names the called repository rather than this one. Running the
+      # action in this job keeps the claim on this file, which is what the policy names.
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          nuget-user: your-nuget-profile-name
+          # A composite action has no `secrets` context, so credentials are handed over explicitly.
+          packages-read-token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN }}
 ```
 
 For the **main-as-head / release-branch model**, point the release caller at the release branch instead:
@@ -67,27 +85,34 @@ on:
     branches: [release]
 ```
 
-The reusable workflow checks whether `v{version}` (read from `package.json`) is already tagged and skips if so, so merging `main` into `release` releases exactly once.
+The release action asks the tool to evaluate eligibility and reads the verdict: an already-released version skips (the job finishes green), and a policy violation fails the job naming the rule. Merging `main` into `release` therefore releases exactly once.
 
-The reusable workflows install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+The shared entry points install the pinned CLI version (or the latest stable when `build-version` is omitted) from nuget.org; the organisation mirror is registered first, so a pinned version that NuGet.org has not indexed yet is installed from GitHub Packages. The consuming repository adds `purview-build.json` and a root `package.json` version. It does not need a copied pipeline project or package-source credentials.
+
+The reusable `purview-release.yml` still exists and forwards to the same action, so an older caller
+keeps working. It cannot do Trusted Publishing: the OIDC claim inside a called workflow names the
+called repository, never the caller, so a policy registered for the caller will not match. New
+callers should use the action directly, as above.
 
 ### Publishing without a stored API key (Trusted Publishing)
 
-Prefer this to a long-lived `NUGET__APIKEY`. The job exchanges a GitHub OIDC token for a
-nuget.org key that is valid for one hour and minted for that run, so there is no publishing
-secret to leak, rotate, or expire.
+This is the supported path, and the only one once long-lived keys expire. The job exchanges a GitHub
+OIDC token for a nuget.org key that is valid for one hour and minted for that run, so there is no
+publishing secret to leak, rotate, or expire.
 
-1. On nuget.org, under your profile → **Trusted Publishing**, register a policy naming the
-   repository owner and repository.
-2. Grant `id-token: write` in the calling workflow — a reusable workflow can never elevate its
-   caller's token, so the caller must request it. GitHub grants `id-token` as `none` by default
+1. On nuget.org, under your profile → **Trusted Publishing**, register a policy with the GitHub
+   **repository owner**, the **repository**, and the **workflow file name** (`release.yml` — the
+   file name only, not the `.github/workflows/` path). The policy owner must be the account that
+   owns the packages. Leave **Environment** blank unless the workflow uses one.
+2. Grant `id-token: write` on the calling job — GitHub grants `id-token` as `none` by default
    however permissive the repository's default token is, so this step is never optional.
-3. Pass `trusted-publishing: true` and `nuget-user` (your nuget.org **profile name**, not the
-   sign-in email).
+3. Pass `nuget-user` (your nuget.org **profile name**, not the sign-in email) to the composite
+   action.
 
 ```yaml
 jobs:
   release:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       # Trusted Publishing replaces the nuget.org key, not the GitHub Packages mirror, and the
@@ -95,16 +120,21 @@ jobs:
       # repository publishes to nuget.org and then fails on the second push.
       packages: write
       id-token: write
-    uses: purview-dev/build/.github/workflows/purview-release.yml@<sha>
-    with:
-      release-mode: NuGet
-      build-version: "0.8.0"
-      trusted-publishing: true
-      nuget-user: your-nuget-profile-name
+    steps:
+      - uses: purview-dev/build/actions/purview-release@<sha>
+        with:
+          release-mode: NuGet
+          build-version: "0.8.0"
+          trusted-publishing: true
+          nuget-user: your-nuget-profile-name
 ```
 
+The exchange only happens when the tool's eligibility evaluation returns `Release`, and it runs
+immediately before the push: the minted key lives for one hour and each OIDC token can be exchanged
+exactly once.
+
 Once this is in place, remove the `NUGET__APIKEY` secret from the caller. While
-`trusted-publishing` is on, the workflow deliberately blanks `NUGET_APIKEY`: the tool prefers it
+`trusted-publishing` is on, the action deliberately blanks `NUGET_APIKEY`: the tool prefers it
 over `NUGET_API_KEY`, so a leftover long-lived secret would otherwise keep publishing the old way
 while the configuration looked migrated.
 
@@ -214,7 +244,8 @@ to it is **off** until a repository opts in.
 
 ### Restoring from the organisation feed
 
-The shared composite action and both reusable workflows register, for the duration of the job:
+The shared entry points — `purview-build.yml`, `purview-release.yml`, and both composite actions —
+register, for the duration of the job:
 
 ```text
 https://api.nuget.org/v3/index.json
@@ -224,7 +255,7 @@ https://nuget.pkg.github.com/<repository owner>/index.json
 They write the source into the runner's **user-level** NuGet configuration (never the repository's
 `nuget.config`), authenticate it with `GITHUB_TOKEN` and a `%GITHUB_TOKEN%` credential macro so no
 token is written to disk, and remove the source again at the end of the job. `packages: read` is
-already declared by both reusable workflows. A repository that depends only on NuGet.org packages
+already declared by both build workflows. A repository that depends only on NuGet.org packages
 keeps restoring normally: both sources stay enabled, and NuGet picks the highest version that
 satisfies the reference.
 
@@ -264,7 +295,7 @@ to all workflows. If you would rather not add every consuming repository to ever
    types members may *create*; they do not change what a published package inherits, and Private often
    cannot be unchecked because the default creation type must remain allowed.
 
-The shared workflows use that secret for the feed when it exists and fall back to `GITHUB_TOKEN`
+The shared entry points use that secret for the feed when it exists and fall back to `GITHUB_TOKEN`
 otherwise. Publication still uses `GITHUB_TOKEN` with `packages: write`; the read token never
 publishes, is never written to a configuration file, and is only exported for the duration of the job.
 Callers of the reusable workflows already use `secrets: inherit`; composite-action users pass it as
@@ -285,20 +316,22 @@ unmapped packages continue to come from NuGet.org.
 ### Opting a repository in to publishing
 
 Publication is controlled only by a repository-level GitHub Actions **variable**, evaluated by the
-shared release workflow. Nothing in `.config/purview-build.json`, `package.json`, the `.csproj` files
+shared release action. Nothing in `.config/purview-build.json`, `package.json`, the `.csproj` files
 or the repository's `nuget.config` needs to change.
 
-1. **Let the release workflow write packages.** A reusable workflow can never grant more than its
-   caller, and it declares no permissions of its own. In the repository's
+1. **Let the release workflow write packages.** Neither a reusable workflow nor a composite action can
+   grant more than its caller, and neither declares permissions. In the repository's
    `.github/workflows/release.yml`:
 
    ```yaml
    permissions:
      contents: write
      packages: write
+     id-token: write
    ```
 
-   (The job also needs `contents: write` to create the tag and GitHub release.)
+   (`contents: write` creates the tag and GitHub release; `id-token: write` is what the Trusted
+   Publishing exchange needs, and GitHub withholds it by default.)
 
 2. **Set the variable.** Repository → **Settings** → **Secrets and variables** → **Actions** →
    **Variables** → **New repository variable**:
