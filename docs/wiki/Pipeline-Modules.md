@@ -93,7 +93,7 @@ Category `Release`. Depends on `PackModule`, `ValidatePackModule`, and `RunTests
 
 `Release:Publish` is derived from `Release:Mode` unless set explicitly, so the default skip behaviour is unchanged: it publishes when `Release:Mode=NuGet`.
 
-Pushes every `*.nupkg` in `Build:ArtifactsFolder` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel` declares one and `NuGet:FeedUrl` otherwise. When `NuGet:TrustedPublishing` is true, pushes without an API key (NuGet Trusted Publishing / OIDC federation). When `Release:DryRun` is true, logs the push it would have made and performs none.
+Pushes every `*.nupkg` in `Build:ArtifactsFolder` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel` declares one and `NuGet:FeedUrl` otherwise. When `NuGet:TrustedPublishing` is true the push uses the short-lived key that `NuGet/login` minted from the job's OIDC token; if none reached the pipeline the module fails with a message pointing at the login step rather than pushing unauthenticated. When `Release:DryRun` is true, logs the push it would have made and performs none.
 
 ## PublishGitHubPackagesModule
 

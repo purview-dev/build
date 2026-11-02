@@ -75,7 +75,7 @@ The `release-branch` input is retained for backward compatibility only.
 
 This repository dogfoods the shared tool. CI performs restore, warnings-as-errors compilation, packing, installation from the generated package, then runs `purview-build` against this repository so the project builds and packs itself. See [Repository CI/CD](Repository-CI-CD.md).
 
-On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using the `NUGET_APIKEY` secret, and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. When this repository's `PURVIEW_PUBLISH_GITHUB_PACKAGES` variable is `true`, the same packages also go to GitHub Packages, and older mirror versions are pruned afterwards. The tool therefore owns tagging; maintainers must not push release tags manually.
+On a push to `main`, the release workflow reads and validates the `package.json` version, skips when `v{version}` already exists, then builds and installs the tool from the current source and runs it with `Release__Mode=NuGet`, `NuGet__FeedUrl` set to nuget.org, and `Release__UploadArtifacts=true`. The tool performs the release build/pack steps, publishes the immutable package to `https://api.nuget.org/v3/index.json` using a short-lived key minted from the job's GitHub OIDC token (Trusted Publishing — no long-lived publishing secret exists), and creates `v{version}` plus a generated-notes GitHub release with the package attached — tagging itself exactly like every other purview-dev repository. When this repository's `PURVIEW_PUBLISH_GITHUB_PACKAGES` variable is `true`, the same packages also go to GitHub Packages, and older mirror versions are pruned afterwards. The tool therefore owns tagging; maintainers must not push release tags manually.
 
 ## GitHub Packages
 
@@ -102,15 +102,18 @@ PURVIEW_PUBLISH_GITHUB_PACKAGES=true
 
 To opt a repository in:
 
-1. Grant the caller's release job the permission the publish step needs. Reusable workflows cannot
-   elevate a caller and `purview-release.yml` declares no permissions of its own, so add to the
-   repository's `.github/workflows/release.yml`:
+1. Grant the caller's release job the permission the publish step needs. Neither a reusable workflow
+   nor a composite action can elevate a caller, and neither declares permissions of its own, so add to
+   the repository's `.github/workflows/release.yml`:
 
    ```yaml
    permissions:
      contents: write
      packages: write
+     id-token: write
    ```
+
+   `id-token: write` is what the Trusted Publishing exchange needs; GitHub withholds it by default.
 
 2. Create the repository variable (Settings → Secrets and variables → Actions → Variables):
    `PURVIEW_PUBLISH_GITHUB_PACKAGES = true`.

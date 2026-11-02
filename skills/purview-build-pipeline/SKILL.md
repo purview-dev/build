@@ -145,8 +145,10 @@ Credentials are a startup concern: with publishing requested and `Release:DryRun
 NuGet API key (when `NuGet:TrustedPublishing` is false) fails the run before any module.
 
 Pushes every `*.nupkg` with `--skip-duplicate`, to the channel's `FeedUrl` when `Release:Channel`
-declares one and `NuGet:FeedUrl` otherwise. With `TrustedPublishing`, pushes without an API key.
-With `Release:DryRun`, logs the push and performs none.
+declares one and `NuGet:FeedUrl` otherwise. With `TrustedPublishing`, pushes with the short-lived key
+`NuGet/login` minted from the job's OIDC token; if no key reached the pipeline it fails with a message
+pointing at the login step rather than pushing unauthenticated. With `Release:DryRun`, logs the push
+and performs none.
 
 ## GitHub Packages
 

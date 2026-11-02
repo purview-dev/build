@@ -30,7 +30,7 @@ Verdicts: **Release** (exit 0), **Skip** (exit 0 — the job finishes green, not
 
 ```shell
 dotnet purview-build release-explain
-dotnet purview-build release-explain --format=json    # the contract the reusable workflow consumes
+dotnet purview-build release-explain --format=json    # the contract the release action consumes
 ```
 
 ## The rules
@@ -103,17 +103,25 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Callers own release serialisation; the reusable workflow defines no concurrency group.
+  # Callers own release serialisation; the shared entry points define no concurrency group.
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-      eligibility-policy: TrunkReservesMinor
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          eligibility-policy: TrunkReservesMinor
+          trusted-publishing: true
+          nuget-user: your-nuget-profile-name
 ```
 
 ## Defining a policy

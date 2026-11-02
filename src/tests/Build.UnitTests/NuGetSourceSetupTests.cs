@@ -17,6 +17,10 @@ public class NuGetSourceSetupTests
 	const string PruneScript = "actions/prune-github-packages/prune.sh";
 	const string BuildWorkflow = ".github/workflows/purview-build.yml";
 	const string ReleaseWorkflow = ".github/workflows/purview-release.yml";
+
+	// The release implementation moved out of the reusable workflow: Trusted Publishing cannot work
+	// from a called workflow, so the steps live in a composite action that runs in the caller's job.
+	const string ReleaseAction = "actions/purview-release/action.yml";
 	const string SelfHostedBuild = ".github/workflows/ci.yml";
 	const string SelfHostedRelease = ".github/workflows/release.yml";
 	const string CompositeAction = ".github/actions/purview-build/action.yml";
@@ -60,7 +64,7 @@ public class NuGetSourceSetupTests
 		// A build-version pinned to a version only GitHub Packages has (NuGet.org not indexed yet) is
 		// resolved by `dotnet tool install`, so the feed must exist before that step.
 		var build = Read(BuildWorkflow);
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var composite = Read(CompositeAction);
 
 		// Act & Assert
@@ -68,7 +72,7 @@ public class NuGetSourceSetupTests
 			var (name, content) in new[]
 			{
 				(BuildWorkflow, build),
-				(ReleaseWorkflow, release),
+				(ReleaseAction, release),
 				(CompositeAction, composite),
 			}
 		)
@@ -90,7 +94,8 @@ public class NuGetSourceSetupTests
 		var action = Read(SourceAction);
 		var script = Read(SourceScript);
 		var build = Read(BuildWorkflow);
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
+		var releaseWorkflow = Read(ReleaseWorkflow);
 		var composite = Read(CompositeAction);
 
 		// Act & Assert
@@ -101,7 +106,11 @@ public class NuGetSourceSetupTests
 		await Assert.That(script).Contains("PURVIEW_NUGET_TOKEN=$TOKEN");
 		await Assert.That(script).Contains("PURVIEW_NUGET_TOKEN=");
 		await Assert.That(build).Contains("secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token");
-		await Assert.That(release).Contains("secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token");
+		await Assert
+			.That(releaseWorkflow)
+			.Contains("PURVIEW_PACKAGES_READ_TOKEN")
+			.Because("a composite action has no secrets context, so the delegator has to hand the token over.");
+		await Assert.That(release).Contains("inputs.packages-read-token || github.token");
 		await Assert.That(composite).Contains("packages-read-token");
 		await Assert.That(composite).Contains("inputs.packages-read-token || github.token");
 	}
@@ -161,7 +170,7 @@ public class NuGetSourceSetupTests
 	{
 		// Arrange
 		var build = Read(BuildWorkflow);
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var selfBuild = Read(SelfHostedBuild);
 		var selfRelease = Read(SelfHostedRelease);
 		var composite = Read(CompositeAction);
@@ -182,7 +191,7 @@ public class NuGetSourceSetupTests
 	{
 		// Arrange
 		var build = Read(BuildWorkflow);
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var selfBuild = Read(SelfHostedBuild);
 		var selfRelease = Read(SelfHostedRelease);
 
@@ -191,7 +200,7 @@ public class NuGetSourceSetupTests
 			var (name, content, later) in new[]
 			{
 				(BuildWorkflow, build, "Run shared build"),
-				(ReleaseWorkflow, release, "Run release pipeline"),
+				(ReleaseAction, release, "Run release pipeline"),
 				(SelfHostedBuild, selfBuild, "Restore"),
 				(SelfHostedRelease, selfRelease, "Restore"),
 			}
@@ -208,7 +217,7 @@ public class NuGetSourceSetupTests
 	public async Task PublishOptIn_IsEvaluatedOnlyWhereAReleaseCanHappen()
 	{
 		// Arrange
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var selfRelease = Read(SelfHostedRelease);
 		var build = Read(BuildWorkflow);
 		var selfBuild = Read(SelfHostedBuild);
@@ -229,15 +238,24 @@ public class NuGetSourceSetupTests
 	}
 
 	[Test]
-	public async Task ReleaseWorkflows_GrantPackageWrite()
+	public async Task ReleaseEntryPoints_LeaveTheTokenToTheCaller()
 	{
 		// Arrange
+		// Neither a reusable workflow nor a composite action can grant a scope. Trusted Publishing
+		// needs `id-token: write`, which GitHub withholds by default, so the calling job must ask for
+		// it. A block here would only add a ceiling validated against the caller.
 		var release = Read(ReleaseWorkflow);
+		var releaseAction = Read(ReleaseAction);
 		var selfRelease = Read(SelfHostedRelease);
 
 		// Act & Assert
-		await Assert.That(release).Contains("packages: write");
+		await Assert.That(release).DoesNotContain("packages: write");
+		await Assert.That(releaseAction).DoesNotContain("permissions:");
 		await Assert.That(selfRelease).Contains("packages: write");
+		await Assert
+			.That(selfRelease)
+			.Contains("id-token: write")
+			.Because("this repository's own release mints its nuget.org key from the OIDC token.");
 	}
 
 	[Test]
@@ -258,7 +276,7 @@ public class NuGetSourceSetupTests
 	public async Task Prune_OnlyRunsAfterASuccessfulReleaseWithTheOptIn()
 	{
 		// Arrange
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var selfRelease = Read(SelfHostedRelease);
 		var build = Read(BuildWorkflow);
 		var composite = Read(CompositeAction);
@@ -313,7 +331,7 @@ public class NuGetSourceSetupTests
 	public async Task Prune_ReadsTheRetentionWindowFromTheRepositoryVariable()
 	{
 		// Arrange
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var selfRelease = Read(SelfHostedRelease);
 
 		// Act & Assert
@@ -332,7 +350,7 @@ public class NuGetSourceSetupTests
 		// A fork PR receives no organisation secrets, so the private feed would deny every restore.
 		var build = Read(BuildWorkflow);
 		var selfBuild = Read(SelfHostedBuild);
-		var release = Read(ReleaseWorkflow);
+		var release = Read(ReleaseAction);
 		var composite = Read(CompositeAction);
 
 		// Act & Assert

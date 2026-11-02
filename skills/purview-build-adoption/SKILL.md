@@ -2,8 +2,9 @@
 name: purview-build-adoption
 description: >-
   Use when wiring Purview.Build into a repository - choosing the reusable workflow or the composite
-  action, pinning the workflow ref versus the tool version, running the pipeline locally as a dotnet
-  tool, and what a consuming repository has to add before anything will run.
+  action, pinning the workflow ref versus the tool version, authenticating nuget.org publication with
+  Trusted Publishing, running the pipeline locally as a dotnet tool, and what a consuming repository
+  has to add before anything will run.
 metadata:
   product: Purview.Build
   repository: purview-dev/build
@@ -31,7 +32,7 @@ Get this wrong and you run new tool code through old workflow inputs.
 
 Pin both, or neither. Pinning one and floating the other is the mismatch.
 
-## Reusable workflow — the usual choice
+## Build — the reusable workflow
 
 ```yaml
 # .github/workflows/pr.yml
@@ -45,23 +46,44 @@ jobs:
     secrets: inherit
 ```
 
+## Release — the composite action
+
+Release runs as a **composite action**, not a reusable workflow. nuget.org validates the OIDC
+`job_workflow_ref` claim against the Trusted Publishing policy, and inside a called workflow that
+claim names the called repository — never yours — so the exchange fails with *"No matching trust
+policy"* (`NuGet/NuGetGallery#11000`). A composite action's steps run in **your** job, which keeps the
+claim on your own `release.yml`, the file the policy names.
+
 ```yaml
 # .github/workflows/release.yml
 name: Release
 on:
   push:
     branches: [main]
+permissions:
+  contents: write   # tag and GitHub release
+  packages: write   # GitHub Packages mirror, when the variable opts in
+  id-token: write   # nuget.org Trusted Publishing — GitHub withholds this by default
 concurrency:
-  # Callers own release serialisation; the reusable workflow defines no concurrency group.
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          nuget-user: your-nuget-profile-name
+          # A composite action has no `secrets` context, so credentials are passed explicitly.
+          packages-read-token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN }}
 ```
+
+The action checks out the repository with full tags, installs the tool, asks the tool to evaluate
+eligibility, exchanges a short-lived nuget.org key when `trusted-publishing: true`, runs the
+pipeline, and prunes the mirror. Pass `trusted-publishing: true` alongside `nuget-user`; the default
+is the legacy API-key path.
 
 The release caller's **trigger** is what picks your release model:
 
@@ -74,16 +96,24 @@ The release caller's **trigger** is what picks your release model:
 ```yaml
 jobs:
   release:
-    uses: purview-dev/build/.github/workflows/purview-release.yml@main
-    with:
-      release-mode: NuGet
-      eligibility-policy: TrunkReservesMinor
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: purview-dev/build/actions/purview-release@main
+        with:
+          release-mode: NuGet
+          eligibility-policy: TrunkReservesMinor
+          trusted-publishing: true
+          nuget-user: your-nuget-profile-name
 ```
 
-The reusable release workflow asks the tool to evaluate eligibility and reads the verdict: an
-already-released version **skips** and the job finishes green; a policy violation **fails** the job
-naming the rule. Merging `main` into `release` therefore releases exactly once.
+The release action reads the tool's eligibility verdict: an already-released version **skips** and the
+job finishes green; a policy violation **fails** the job naming the rule. Merging `main` into
+`release` therefore releases exactly once.
+
+`purview-release.yml` still exists and forwards to the same action, so an older caller keeps working.
+It cannot do Trusted Publishing and no longer accepts `trusted-publishing` or `nuget-user` — passing
+them fails validation rather than 401ing mid-run.
 
 ## Composite action — when you need surrounding steps
 
@@ -111,7 +141,8 @@ Two different defaults, and the distinction matters:
 | Files to change | none | `release.yml` permissions only |
 | Local development | unchanged | unchanged unless you opt in explicitly |
 
-Consumption needs nothing. The shared action and both reusable workflows register
+Consumption needs nothing. The shared entry points — `purview-build.yml`, `purview-release.yml`, and
+both composite actions — register
 `https://api.nuget.org/v3/index.json` **and**
 `https://nuget.pkg.github.com/<owner>/index.json` in the runner's user-level NuGet configuration,
 authenticated with `GITHUB_TOKEN` via a `%GITHUB_TOKEN%` macro, before the repository's first restore.
@@ -119,20 +150,21 @@ A package that only exists on NuGet.org keeps restoring: both sources stay enabl
 
 **If you want every repository to read every package without per-package grants** (Internal does not
 do that on a Team plan), add one organisation secret, `PURVIEW_PACKAGES_READ_TOKEN`, a classic PAT with
-`read:packages`. The shared workflows use it for the feed when present and fall back to `GITHUB_TOKEN`;
-it never publishes. Callers already use `secrets: inherit`; the composite action takes it as
+`read:packages`. The shared entry points use it for the feed when present and fall back to `GITHUB_TOKEN`;
+it never publishes. A composite action has no `secrets` context, so it takes the token as
 `packages-read-token`. Visibility is independent: new packages are private, the token reads them, and
 changing a package to Internal is a per-package UI action (no REST endpoint).
 
 Publication is additive — the same packed artifacts go to both feeds. To opt a repository in:
 
-1. In `.github/workflows/release.yml`, grant what the publish step needs (a reusable workflow
-   cannot elevate its caller, and `purview-release.yml` declares no permissions of its own):
+1. In `.github/workflows/release.yml`, grant what the publish step needs (neither a reusable workflow
+   nor a composite action can elevate its caller, and neither declares permissions of its own):
 
    ```yaml
    permissions:
      contents: write
      packages: write
+     id-token: write
    ```
 
 2. Create the repository variable (Settings → Secrets and variables → Actions → Variables):

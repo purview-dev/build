@@ -174,7 +174,7 @@ fails immediately instead of skipping the publish or release module after the bu
 | --- | --- |
 | `-v`, `--version` | print the tool version and exit |
 | `-h`, `--help`, `-?` | usage, options, the probe order, and the **resolved configuration path** (or "none found") |
-| `release-explain` | print the release decision and exit, running no module. `--format=json` emits the stable contract the reusable workflow consumes |
+| `release-explain` | print the release decision and exit, running no module. `--format=json` emits the stable contract the release action consumes |
 
 `--help` printing the resolved path is the fastest answer to "which config is it actually reading?".
 
