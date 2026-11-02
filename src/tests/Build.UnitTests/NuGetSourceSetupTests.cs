@@ -217,14 +217,19 @@ public class NuGetSourceSetupTests
 	public async Task PublishOptIn_IsEvaluatedOnlyWhereAReleaseCanHappen()
 	{
 		// Arrange
+		// A composite action has no `vars` context, so the action takes the decision as an input and
+		// the delegator is what reads the repository variable.
 		var release = Read(ReleaseAction);
+		var releaseWorkflow = Read(ReleaseWorkflow);
 		var selfRelease = Read(SelfHostedRelease);
 		var build = Read(BuildWorkflow);
 		var selfBuild = Read(SelfHostedBuild);
 
 		// Act & Assert
-		await Assert.That(release).Contains("vars.PURVIEW_PUBLISH_GITHUB_PACKAGES");
+		await Assert.That(release).Contains("inputs.github-packages");
 		await Assert.That(release).Contains("NuGet__GitHubPackages__Enabled");
+		await Assert.That(releaseWorkflow).Contains("vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'");
+		await Assert.That(releaseWorkflow).Contains("github-packages:");
 		await Assert.That(selfRelease).Contains("vars.PURVIEW_PUBLISH_GITHUB_PACKAGES");
 		await Assert.That(selfRelease).Contains("NuGet__GitHubPackages__Enabled");
 		await Assert
@@ -283,7 +288,7 @@ public class NuGetSourceSetupTests
 
 		// Act & Assert
 		await Assert.That(release).Contains("prune-github-packages");
-		await Assert.That(release).Contains("vars.PURVIEW_PUBLISH_GITHUB_PACKAGES == 'true'");
+		await Assert.That(release).Contains("inputs.github-packages == 'true'");
 		await Assert.That(selfRelease).Contains("prune-github-packages");
 		await Assert.That(build).DoesNotContain("prune-github-packages");
 		await Assert.That(composite).DoesNotContain("prune-github-packages");
