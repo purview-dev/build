@@ -18,6 +18,13 @@ inputs:
     description: .NET SDK used by the consuming repository.
     required: false
     default: 10.0.x
+  node-version:
+    description: >-
+      Node.js used by the consuming repository's JavaScript tooling (for example Astro, which
+      refuses to run below its minimum). Pinned rather than inherited from the runner image,
+      whose Node version drifts between builds.
+    required: false
+    default: 26.x
   config-path:
     description: >-
       Explicit purview-build.json location (PURVIEW_BUILD_CONFIG). When omitted, the tool uses its
@@ -46,6 +53,12 @@ runs:
         dotnet-version: ${{ inputs.dotnet-version }}
 
     - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+    # JavaScript tooling (Astro and anything it shells out to) checks `process.versions.node`
+    # and refuses to run below its minimum. The runner image's Node drifts, so pin it.
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version: ${{ inputs.node-version }}
 
     # Same implementation the reusable workflows use. Registered before the tool install so a
     # build-version that exists only on GitHub Packages is resolvable.
