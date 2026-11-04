@@ -17,6 +17,14 @@ on:
         required: false
         default: 10.0.x
         type: string
+      node-version:
+        description: >-
+          Node.js used by the consuming repository's JavaScript tooling (for example Astro, which
+          refuses to run below its minimum). Pinned rather than inherited from the runner image,
+          whose Node version drifts between builds.
+        required: false
+        default: 26.x
+        type: string
       release-mode:
         description: Release__Mode passed to the pipeline (None, NuGet, or GitHubRelease; LocalNuGet only works when run locally, not from a workflow).
         required: false
@@ -122,6 +130,13 @@ jobs:
           dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      # JavaScript tooling (Astro and anything it shells out to) checks `process.versions.node`
+      # and refuses to run below its minimum. The runner image's Node drifts, so a build that
+      # passed can fail later when the image ships a Node below a tool's floor; pin it instead.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ inputs.node-version }}
 
       # Registered before the tool install so a build-version that exists only on GitHub Packages (a
       # version NuGet.org has not indexed yet) is resolvable. It is also before the repository's own
