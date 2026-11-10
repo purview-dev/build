@@ -14,7 +14,7 @@ static class PackageInspector
 	static readonly Guid CompilerFlagsDebugInfoGuid = new("B5FEEC05-8CD0-4A83-96DA-466284BB4BD8");
 
 	// Target-framework partial token, e.g. "lib/$(TFM)/Foo.dll" expands to one entry per
-	// target framework the package supports (short folder name, e.g. "net8.0", "net48").
+	// target framework the package supports (short folder name, e.g. "net11.0", "net48").
 	const string TfmToken = "$(TFM)";
 
 	public static bool MatchesAny(string pattern, IEnumerable<string> paths)

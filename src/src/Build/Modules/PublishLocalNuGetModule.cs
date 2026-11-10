@@ -46,14 +46,28 @@ public sealed class PublishLocalNuGetModule(
 
 		List<ValidationResult> validationResults = [];
 		ValidationContext validationContext = new(settings);
-		if (
-			!Validator.TryValidateObject(
-				settings,
-				validationContext,
-				validationResults,
-				validateAllProperties: true
-			)
-		)
+
+		// .NET 11 added asynchronous DataAnnotations validation, and CA1849 asks this module to use it
+		// because the module runs inside an async method. The net10.0 leg keeps the synchronous call:
+		// the settings type declares no asynchronous validators, so the synchronous form cannot block.
+#if NET11_0_OR_GREATER
+		var settingsAreValid = await Validator.TryValidateObjectAsync(
+			settings,
+			validationContext,
+			validationResults,
+			validateAllProperties: true,
+			cancellationToken: cancellationToken
+		);
+#else
+		var settingsAreValid = Validator.TryValidateObject(
+			settings,
+			validationContext,
+			validationResults,
+			validateAllProperties: true
+		);
+#endif
+
+		if (!settingsAreValid)
 		{
 			foreach (var validationResult in validationResults)
 				context.Logger.LogError("{Message}", validationResult.ErrorMessage);

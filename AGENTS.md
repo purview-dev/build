@@ -27,6 +27,7 @@ This file is the primary instruction set for human and AI agents working in this
   - `docs/wiki/Release-Flow.md` — versioning, branch models, and release strategy.
   - `docs/wiki/Release-Models.md` — the three release trigger models, as raw Mermaid source.
   - `docs/wiki/Local-Development.md` — `just` recipes, `release-explain`, simulation, and the local rehearsal.
+  - `docs/wiki/Net-11.md` — supported runtimes (and the .NET 8/9 removal) and the .NET 11 feature evaluation.
   - `docs/wiki/Migration-*.md` — per-consumer migration guides.
 - `README.md` — user-facing overview and minimal consumer setup.
 - `.config/purview-build.json` — this repository's own pipeline configuration.
@@ -53,7 +54,7 @@ CI builds with `--warnaserror`.
 ## Code conventions
 
 - C# is formatted with **CSharpier** (pinned in `.config/dotnet-tools.json`); `just lint-check` must pass. `.pre-commit` (Lefthook, `.config/lefthook.yml`) runs it.
-- Target `net10.0`; the codebase uses C# modern idioms (primary constructors, collection expressions, file-scoped namespaces).
+- Target `net10.0` and `net11.0` (the `PurviewTargetFrameworkSet` the SDK defaults to); the codebase uses C# modern idioms (primary constructors, collection expressions, file-scoped namespaces). Shared code must compile against the **oldest** target's API surface — see `docs/wiki/Net-11.md` for why a .NET 11-only API needs a `#if NET11_0_OR_GREATER` guard.
 - Commits must follow [Conventional Commits](https://www.conventionalcommits.org) (enforced by commitlint via Lefthook). Examples: `fix:`, `feat:`, `build:`, `docs:`, `chore:`.
 - Do not add code comments unless they explain non-obvious rationale (see existing comments in `Settings/` and `Modules/` for the style).
 - Do not commit secrets or modify secret-handling settings without review.

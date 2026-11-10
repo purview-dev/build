@@ -9,4 +9,5 @@
 - [Local Development](Local-Development.md)
 - [Secrets and Environment Variables](Secrets-and-Environment-Variables.md)
 - [Repository CI/CD](Repository-CI-CD.md)
+- [.NET 11 support and feature evaluation](Net-11.md)
 - [Migration: aspire-resourcekit](Migration-aspire-resourcekit.md)

@@ -7,6 +7,15 @@
 		<!-- <PackageId>Purview.Build</PackageId> -->
 		<Description>Shared build/test/release pipeline for purview-dev. A Modular Pipelines based .NET tool (Purview.Build) with a GitHub composite action and reusable workflows; consumers configure, the pipeline runs.</Description>
 		<NoWarn>$(NoWarn);CA1515;CA1873;</NoWarn>
+		<!-- .NET 11 adds string.StartsWith/EndsWith/LastIndexOf(char, StringComparison), and CA1307 then
+		     requires them. CA1865 forbids the portable alternative (the single-char string overload), and
+		     this tool multi-targets net10.0, where the (char, StringComparison) overloads do not exist, so
+		     the two rules cannot both be satisfied. A char comparison is ordinal by definition, so the
+		     suggestion buys clarity of intent only. Suppress it on the newest target only, keeping the rule
+		     live on the older one. Conditional on the SDK's Latest set so it follows the next major. -->
+		<NoWarn Condition="'$(TargetFramework)' == '$(PurviewTargetFrameworksLatest)'">$(NoWarn);CA1307;</NoWarn>
+		<PurviewPolicyExemptNoWarn Condition="'$(TargetFramework)' == '$(PurviewTargetFrameworksLatest)'"
+			>$(PurviewPolicyExemptNoWarn);CA1307;</PurviewPolicyExemptNoWarn>
 		<DisablePurviewStylePolicyValidation>true</DisablePurviewStylePolicyValidation>
 		<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
 	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->

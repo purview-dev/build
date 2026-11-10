@@ -51,7 +51,7 @@ public sealed record PackValidationSettings
 	/// <remarks>
 	/// An entry may contain the literal token <c>$(TFM)</c> as a target-framework partial, e.g.
 	/// "lib/$(TFM)/Foo.dll". The token is expanded into one required entry per target framework
-	/// the package actually supports (short folder name, e.g. "net8.0", "net48", "netstandard2.0"),
+	/// the package actually supports (short folder name, e.g. "net11.0", "net48", "netstandard2.0"),
 	/// so every one of the package's target frameworks must independently satisfy the entry.
 	/// Pseudo-frameworks reported by NuGet's package discovery ("any", "agnostic", "unsupported" -
 	/// notably the "any" target framework a package's contentFiles group contributes) are not

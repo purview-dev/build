@@ -35,9 +35,30 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # See ci.yml: global.json is the single source of truth for the SDK, and a run that installs
+      # a different band fails before the pipeline starts.
+      - name: Resolve the .NET SDK version
+        id: resolve-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pinned=""
+          if [ -f global.json ]; then
+            pinned="$(jq -r '.sdk.version // empty' global.json)"
+          fi
+
+          if [ -n "$pinned" ]; then
+            echo "global.json pins $pinned; installing that."
+            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+          else
+            echo "global.json pins no sdk.version; using the default (10.0.x)."
+            echo "dotnet-version=10.0.x" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 

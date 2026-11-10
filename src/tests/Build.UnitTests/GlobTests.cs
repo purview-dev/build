@@ -147,7 +147,7 @@ public class GlobTests
 	public async Task TfmToken_ExpandsAndSatisfiesEachTargetFramework()
 	{
 		List<string> errors = [];
-		string[] files = ["lib/net8.0/Foo.dll", "lib/netstandard2.0/Foo.dll"];
+		string[] files = ["lib/net11.0/Foo.dll", "lib/netstandard2.0/Foo.dll"];
 
 		PackageInspector.ValidateContentRules(
 			files,
@@ -155,7 +155,7 @@ public class GlobTests
 			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll"] },
 			[],
 			errors,
-			targetFrameworkFolderNames: ["net8.0", "netstandard2.0"]
+			targetFrameworkFolderNames: ["net11.0", "netstandard2.0"]
 		);
 
 		await Assert.That(errors).IsEmpty();
@@ -165,7 +165,7 @@ public class GlobTests
 	public async Task TfmToken_MissingForOneFramework_ReportsError()
 	{
 		List<string> errors = [];
-		string[] files = ["lib/net8.0/Foo.dll"];
+		string[] files = ["lib/net11.0/Foo.dll"];
 
 		PackageInspector.ValidateContentRules(
 			files,
@@ -173,7 +173,7 @@ public class GlobTests
 			new() { ["purview.build"] = ["lib/$(TFM)/Foo.dll"] },
 			[],
 			errors,
-			targetFrameworkFolderNames: ["net8.0", "netstandard2.0"]
+			targetFrameworkFolderNames: ["net11.0", "netstandard2.0"]
 		);
 
 		await Assert.That(errors).Count().IsEqualTo(1);
