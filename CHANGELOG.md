@@ -27,17 +27,33 @@ release summarise what the commits recorded rather than what was written at the 
   the job at the first `dotnet` command as soon as one of them moves.
 - **`PublishLocalNuGetModule` uses the asynchronous DataAnnotations validation** on the `net11.0`
   target, honouring the module's cancellation token, with the synchronous call kept on `net10.0`.
+- **The tool survives a NativeAOT publish.** `release-explain --format=json` threw under AOT
+  (`Reflection-based serialization has been disabled`) while the text rendering beside it worked,
+  because AOT disables reflection-based `System.Text.Json` instead of degrading. `ReleaseExplanation`
+  and `string[]` now serialise through the source-generated `BuildJsonContext`; the JSON output is
+  byte-identical and the golden file is unchanged.
+- **`LangVersion` is `preview` on the `net11.0` target.** System.Text.Json's source generator emits
+  `safe extern` accessors, which is C# 15 syntax the compiler only accepts at `preview`. The SDK's
+  tier-2 memory-safety switch enables the rules but leaves the language version at 15.0, so a project
+  with a `JsonSerializerContext` failed with CS8652.
 
 ### Fixed
 
 - **`dotnet restore` failed with NU1010.** `System.Security.Cryptography.Pkcs` kept its
   `PackageReference` but lost its `PackageVersion`. Restoring it also stops the vulnerable 8.0.1
   package that `NuGet.Packaging` pulls transitively from being resolved.
+- **`just build-local-tool`, and therefore every `pipeline-*` recipe, failed with NETSDK1129.**
+  `dotnet publish` refuses a multi-targeted project without a single framework. The recipe now pins
+  `PurviewTargetFrameworkSet=Latest`; the packaged tool still ships both targets.
 
 ### Added
 
 - `docs/wiki/Net-11.md` — the supported-runtime table, what the SDK already enables, and the .NET 11
   features evaluated per area with the decision and its reason.
+- `just publish-aot` — publishes the tool as a NativeAOT executable for the current platform and
+  smoke-tests `release-explain --format=json`, the path where reflection-based serialisation fails
+  silently at runtime rather than at build time. CI runs the same check on Windows, Linux and macOS as
+  a `fail-fast: false` matrix.
 
 ## [0.7.0] - 2026-10-21
 

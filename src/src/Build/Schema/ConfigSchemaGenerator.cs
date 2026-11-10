@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,6 +13,12 @@ namespace Purview.Build.Schema;
 /// The settings types are the single source of truth: a key the tool can bind is a key the schema
 /// describes, and a key the tool cannot bind fails validation. <c>just schema</c> regenerates the
 /// committed file, and <c>ConfigSchemaTests</c> fails the build when the two drift.
+/// <para>
+/// This type is the one part of the assembly that is <b>not</b> NativeAOT-safe, and deliberately so:
+/// it is reached only from the test suite and <c>just schema</c>, never from a published binary, and
+/// it reflects over every settings type by design. The suppressions below say exactly that, per call
+/// site, so an AOT publish stays quiet without hiding a reflection risk the tool actually runs.
+/// </para>
 /// </remarks>
 static class ConfigSchemaGenerator
 {
@@ -37,6 +44,11 @@ static class ConfigSchemaGenerator
 		(ReleaseSettings.SectionName, typeof(ReleaseSettings)),
 	];
 
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050",
+		Justification = "Test-only: JsonStringEnumConverter is reflection-based, which is fine where only the test host generates the schema. The generic form needs the enum type per converter, and this option set is shared by every settings type."
+	)]
 	static readonly JsonSerializerOptions ValueOptions = new()
 	{
 		Converters = { new JsonStringEnumConverter() },
@@ -94,6 +106,11 @@ static class ConfigSchemaGenerator
 	public static JsonObject? LoadShippedDefaults(string path) =>
 		File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject : null;
 
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2067",
+		Justification = "Test-only: schema generation instantiates each settings type directly and is never called from a published binary."
+	)]
 	static JsonObject BuildObject(
 		Type type,
 		JsonObject? shippedDefaults,
@@ -231,11 +248,26 @@ static class ConfigSchemaGenerator
 	/// <c>SectionName</c>/<c>Default</c>/<c>Stable</c> helpers and computed properties such as
 	/// <c>IsSimulated</c>, neither of which the configuration binder can set.
 	/// </summary>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2070",
+		Justification = "Test-only: schema generation reflects over each settings type by design and is never called from a published binary."
+	)]
 	static IEnumerable<PropertyInfo> SettingsProperties(Type type) =>
 		type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
 			.Where(property => property.CanWrite)
 			.OrderBy(property => property.MetadataToken);
 
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026",
+		Justification = "Test-only: the default values serialized here are the settings types reflected over directly, which are rooted in the test host."
+	)]
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050",
+		Justification = "Test-only: schema generation never runs under NativeAOT, where the dynamic code this would need is unavailable."
+	)]
 	static JsonNode? ToJsonValue(object? value) =>
 		value is null ? null : JsonSerializer.SerializeToNode(value, value.GetType(), ValueOptions);
 

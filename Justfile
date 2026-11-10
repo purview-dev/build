@@ -24,6 +24,7 @@ pipeline_tool := local_tool
 golden_test_project := tests_root / "Build.UnitTests" / "Build.UnitTests.csproj"
 dogfood_artifacts := "./artifacts/dogfood"
 dogfood_tool_path := "./.tools/dogfood"
+aot_dir := "./.tools/aot"
 
 current_version := `bun -p "require('./package.json').version"`
 
@@ -42,6 +43,7 @@ ensure-pipeline-tool:
 build-local-tool:
     echo "Building {{ BLUE }}{{ tool_project }}{{ NORMAL }} to {{ GREEN }}{{ local_tool_dir }}{{ NORMAL }} (Release)"
     dotnet publish {{ tool_project }} -c Release -o "{{ local_tool_dir }}" \
+        -p:PurviewTargetFrameworkSet=Latest \
         -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
 
 # Run the PR pipeline (restore, build, lint, tests)
@@ -104,6 +106,21 @@ pipeline-dogfood *args:
         --source "{{ dogfood_artifacts }}" --version "{{ current_version }}"
     echo "Running the freshly packed tool against this repository..."
     "{{ dogfood_tool_path }}/purview-build" {{ args }}
+
+# Publish the tool as a native executable (NativeAOT) for the current platform and smoke-test it
+# A published dotnet tool ships IL and picks a runtime at install time; this recipe is the separate
+# question of whether the same source survives AOT, where reflection-based serialisation throws
+# instead of degrading. It is the gate for the JSON path, which the smoke test exercises.
+[group('Build and Test')]
+publish-aot:
+    echo "Publishing {{ BLUE }}{{ tool_project }}{{ NORMAL }} as NativeAOT to {{ GREEN }}{{ aot_dir }}{{ NORMAL }}"
+    rm -rf "{{ aot_dir }}"
+    dotnet publish {{ tool_project }} -c Release -o "{{ aot_dir }}" \
+        -p:PurviewTargetFrameworkSet=Latest \
+        -p:PublishAot=true --use-current-runtime \
+        -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
+    "{{ aot_dir }}/Purview.Build" --version
+    "{{ aot_dir }}/Purview.Build" release-explain --format=json | jq -e '.verdict'
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]
@@ -234,7 +251,7 @@ lint-fix:
 [group('Utilities')]
 scrub:
     find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
-    rm -rf "{{ local_tool_dir }}" "{{ dogfood_tool_path }}" "{{ dogfood_artifacts }}"
+    rm -rf "{{ local_tool_dir }}" "{{ dogfood_tool_path }}" "{{ dogfood_artifacts }}" "{{ aot_dir }}"
     just clean
     just restore --force-evaluate
     dotnet build-server shutdown

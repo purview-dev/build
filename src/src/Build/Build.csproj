@@ -16,6 +16,12 @@
 		<NoWarn Condition="'$(TargetFramework)' == '$(PurviewTargetFrameworksLatest)'">$(NoWarn);CA1307;</NoWarn>
 		<PurviewPolicyExemptNoWarn Condition="'$(TargetFramework)' == '$(PurviewTargetFrameworksLatest)'"
 			>$(PurviewPolicyExemptNoWarn);CA1307;</PurviewPolicyExemptNoWarn>
+		<!-- System.Text.Json's source generator emits 'safe extern' accessors for init-only setters, which is
+		     C# 15 syntax the compiler only accepts at LangVersion=preview. The SDK's tier-2 memory-safety
+		     switch enables the updated *rules* and deliberately leaves LangVersion at 15.0, so a project with
+		     a JsonSerializerContext fails with CS8652 on net11.0 without this. Scoped to the newest target so
+		     the net10.0 leg keeps the released language version. -->
+		<LangVersion Condition="'$(TargetFramework)' == '$(PurviewTargetFrameworksLatest)'">preview</LangVersion>
 		<DisablePurviewStylePolicyValidation>true</DisablePurviewStylePolicyValidation>
 		<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
 	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->

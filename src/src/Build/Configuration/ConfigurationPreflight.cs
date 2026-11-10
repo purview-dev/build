@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Purview.Build.Configuration;
 
@@ -116,6 +117,16 @@ static class ConfigurationPreflight
 		}
 	}
 
+	// DataAnnotations has no trim-safe entry point: constructing a ValidationContext is annotated
+	// RequiresUnreferencedCode because it reflects for DisplayNameAttribute. No settings type carries
+	// that attribute, and PublishLocalNuGetSettings validates through IValidatableObject, so the
+	// reflection it warns about resolves nothing here. The check runs before every pipeline, including
+	// in a NativeAOT publish, and is covered by the preflight tests.
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026",
+		Justification = "Settings types carry no DisplayNameAttribute; validation resolves no reflected metadata beyond the types themselves."
+	)]
 	static void ValidateLocalNuGet(
 		BuildSettings build,
 		ReleaseSettings release,

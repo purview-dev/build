@@ -54,6 +54,55 @@ configuration:
 `PurviewRuntimeAsync=false` or `UseRuntimeAsync=false` opts a project out; `MemorySafetyRules` selects
 the tier.
 
+### The language version tier 2 still needs
+
+Tier 2 turns on `updated-memory-safety-rules` and leaves `LangVersion` at 15.0, on the stated basis that
+the rules are independent of the language version. That holds for hand-written code, but not for
+generated code: `System.Text.Json`'s source generator emits `safe extern` accessors for init-only
+setters, which is C# 15 *syntax* and needs a `preview` language version. A project with a
+`JsonSerializerContext` on `net11.0` therefore fails with **CS8652** unless it sets one.
+
+`Build.csproj` sets `<LangVersion>preview</LangVersion>` on the newest target only, so the `net10.0`
+leg keeps the released language version. If the SDK later couples tier 2 to `preview`, the override can
+go.
+
+## NativeAOT
+
+A published dotnet tool ships IL and picks a runtime at install time, so the package itself cannot be
+AOT-compiled. What *is* achievable — and now verified — is that the same source compiles and runs as a
+NativeAOT executable:
+
+```shell
+just publish-aot
+```
+
+That publishes for the current platform and then runs `release-explain --format=json` through `jq`,
+because an AOT build **disables reflection-based `System.Text.Json` rather than degrading**: the first
+`JsonSerializer.Serialize<T>` call throws `NotSupportedException`. Before this change the text
+rendering worked and `--format=json` failed at runtime, which no compile-time check catches.
+
+CI runs the same check as the `NativeAOT` job in `ci.yml`, across `ubuntu-latest`, `windows-latest` and
+`macos-latest` with `fail-fast: false`. A matrix rather than one runner because the failure modes are
+platform-specific: the linker, the C toolchain and the RID all differ, and a Windows-only breakage must
+not be reported as "the AOT check is red". Each runner publishes with `--use-current-runtime`, so it
+compiles for its own architecture.
+
+| Change | Why |
+| --- | --- |
+| `BuildJsonContext` (source-generated metadata) | Serialising `ReleaseExplanation` and deserialising `string[]` now go through a `JsonSerializerContext`. The JSON output is byte-identical — the golden file is unchanged. |
+| `JsonSerializerOptions.GetTypeInfo<T>()` on `net11.0` | The .NET 11 generic overload; the `net10.0` leg casts the non-generic result. |
+| Suppressions in `ConfigSchemaGenerator` | The only reflection-heavy code in the assembly. It is reached from `just schema` and the test suite only, never from a published binary, so each call site is suppressed with that justification rather than rewritten. |
+| Suppressions for DataAnnotations | `ValidationContext` has no trim-safe constructor (it reflects for `DisplayNameAttribute`). No settings type carries that attribute and validation goes through `IValidatableObject`, so the reflection resolves nothing. |
+
+Four dependencies still report column-level trim and AOT warnings and cannot be fixed here:
+`ModularPipelines`, `Vertical.SpectreLogger`, `Octokit`, and
+`Initialization.Microsoft.Extensions.DependencyInjection` (`IL2104`/`IL3053`). They are warnings, not
+errors, and the smoke test is what proves the paths this tool actually takes. Treat a growing
+`IL2104` list as a prompt to re-run `just publish-aot` rather than as noise.
+
+A full pipeline run under AOT is **not** claimed: ModularPipelines reflects over modules, and the
+smoke test covers the CLI surface and the release-explanation path, not module discovery.
+
 ## Per-target analyzer divergence
 
 The .NET 11 analyzer set is applied to the `net11.0` leg only, and it now suggests APIs that do not
@@ -102,6 +151,7 @@ not done, with the reason. **N/A** — does not apply to this tool.
 | MSBuild server enabled by default | **Review the shutdown step** | .NET 11 keeps a warm MSBuild worker between invocations. `PublishLocalNuGet:ShutdownDotnetBuilderServer=true` tears that down after a local publish; with .NET 11 that discards a resource the next run would otherwise reuse. Worth measuring before changing, since a stale server during feed replacement was the original reason for it. |
 | JIT: devirtualization, bounds-check elimination, constant-folding `SequenceEqual`, exact-type `Activator.CreateInstance<T>` | Adopted (runtime) | Free and unconditional on `net11.0`. |
 | `ReadyToRun` for the tool | Rejected | A dotnet tool ships portable IL; `PublishReadyToRun` would pin it to a platform and remove the single-package cross-platform property. |
+| NativeAOT for the tool | Adopted as a verified publish — `just publish-aot` | The package still ships IL, but the same source now compiles and runs as a native executable. See [NativeAOT](#nativeaot). |
 | `Comparer<T>.Default` specialised in R2R (up to 20×) | N/A | Only relevant to R2R images. |
 | Collection expression arguments (`[with(capacity: …), .. items]`) | Candidate | Micro-optimisation for the several list-building sites in the release and schema code. Low value, zero risk. |
 
@@ -166,3 +216,6 @@ not done, with the reason. **N/A** — does not apply to this tool.
    build. Probe or gate it; never assume .NET 11.
 3. Run `just release-matrix` and `just config-matrix` as well as `just test` — several of the
    candidates above (process capture, test reporting) touch release eligibility.
+4. Run `just publish-aot` if the change adds a serialisation path or any reflection. An AOT build
+   throws on reflection-based `System.Text.Json` instead of degrading, and nothing in the normal
+   build tells you.

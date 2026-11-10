@@ -34,6 +34,13 @@ public sealed class PublishLocalNuGetModule(
 			)
 			.Build();
 
+	// See ConfigurationPreflight.ValidateLocalNuGet: DataAnnotations has no trim-safe entry point, and
+	// the settings type carries no DisplayNameAttribute for it to reflect over.
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026",
+		Justification = "PublishLocalNuGetSettings carries no DisplayNameAttribute; validation resolves no reflected metadata beyond the type itself."
+	)]
 	protected override async Task<CommandResult?> ExecuteAsync(
 		[NotNull] IModuleContext context,
 		CancellationToken cancellationToken
