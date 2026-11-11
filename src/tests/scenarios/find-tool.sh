@@ -20,8 +20,12 @@ if [ -z "${PURVIEW_BUILD_TOOL:-}" ]; then
 	for candidate in \
 		".tools/local/Purview.Build.exe" \
 		".tools/local/Purview.Build" \
+		"src/src/Build/bin/Release/net11.0/Purview.Build.exe" \
+		"src/src/Build/bin/Release/net11.0/Purview.Build" \
 		"src/src/Build/bin/Release/net10.0/Purview.Build.exe" \
 		"src/src/Build/bin/Release/net10.0/Purview.Build" \
+		"src/src/Build/bin/Debug/net11.0/Purview.Build.exe" \
+		"src/src/Build/bin/Debug/net11.0/Purview.Build" \
 		"src/src/Build/bin/Debug/net10.0/Purview.Build.exe" \
 		"src/src/Build/bin/Debug/net10.0/Purview.Build"; do
 		if [ -x "$candidate" ]; then

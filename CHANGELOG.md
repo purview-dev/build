@@ -9,6 +9,52 @@ that version to nuget.org.
 This file was reconstructed from the conventional-commit history at 0.6.1, so entries before that
 release summarise what the commits recorded rather than what was written at the time.
 
+## [Unreleased]
+
+### Changed
+
+- **.NET 8 and .NET 9 are no longer supported.** Both reached end of support on 2026-11-10, so
+  neither is a defensible baseline. Nothing in the repository targets, documents or exemplifies
+  `net8.0`/`net9.0` any more; the `$(TFM)` examples and the pack-validation tests now use `net11.0`.
+  The tool itself still targets `net10.0;net11.0`, because a single-target `net11.0` dotnet tool
+  would be uninstallable on every consumer running the LTS.
+- **The `net11.0` leg is held to the .NET 11 analyzer set.** CA1307 now requires
+  `string.StartsWith(char, StringComparison)` and friends, which do not exist on `net10.0`, while
+  CA1865 rejects the portable single-character-string workaround. The suppression is scoped to the
+  newest target in `Build.csproj`, so the rule stays live on the older one.
+- **`ci.yml` and `release.yml` resolve the SDK from `global.json`** instead of hardcoding a band, the
+  way the shared workflows already did. A pinned `global.json` and a hardcoded `dotnet-version` fail
+  the job at the first `dotnet` command as soon as one of them moves.
+- **`PublishLocalNuGetModule` uses the asynchronous DataAnnotations validation** on the `net11.0`
+  target, honouring the module's cancellation token, with the synchronous call kept on `net10.0`.
+- **The tool survives a NativeAOT publish.** `release-explain --format=json` threw under AOT
+  (`Reflection-based serialization has been disabled`) while the text rendering beside it worked,
+  because AOT disables reflection-based `System.Text.Json` instead of degrading. `ReleaseExplanation`
+  and `string[]` now serialise through the source-generated `BuildJsonContext`; the JSON output is
+  byte-identical and the golden file is unchanged.
+- **`LangVersion` is `preview` on the `net11.0` target.** System.Text.Json's source generator emits
+  `safe extern` accessors, which is C# 15 syntax the compiler only accepts at `preview`. The SDK's
+  tier-2 memory-safety switch enables the rules but leaves the language version at 15.0, so a project
+  with a `JsonSerializerContext` failed with CS8652.
+
+### Fixed
+
+- **`dotnet restore` failed with NU1010.** `System.Security.Cryptography.Pkcs` kept its
+  `PackageReference` but lost its `PackageVersion`. Restoring it also stops the vulnerable 8.0.1
+  package that `NuGet.Packaging` pulls transitively from being resolved.
+- **`just build-local-tool`, and therefore every `pipeline-*` recipe, failed with NETSDK1129.**
+  `dotnet publish` refuses a multi-targeted project without a single framework. The recipe now pins
+  `PurviewTargetFrameworkSet=Latest`; the packaged tool still ships both targets.
+
+### Added
+
+- `docs/wiki/Net-11.md` — the supported-runtime table, what the SDK already enables, and the .NET 11
+  features evaluated per area with the decision and its reason.
+- `just publish-aot` — publishes the tool as a NativeAOT executable for the current platform and
+  smoke-tests `release-explain --format=json`, the path where reflection-based serialisation fails
+  silently at runtime rather than at build time. CI runs the same check on Windows, Linux and macOS as
+  a `fail-fast: false` matrix.
+
 ## [0.7.0] - 2026-10-21
 
 ### Changed

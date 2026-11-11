@@ -55,7 +55,7 @@ the `.snupkg` keeps them for source-link validation.
 ### The `$(TFM)` token
 
 An entry may contain the literal `$(TFM)`, e.g. `lib/$(TFM)/Purview.Telemetry.dll`. It expands into
-one entry **per target framework the package actually ships** — the short folder name (`net8.0`,
+one entry **per target framework the package actually ships** — the short folder name (`net11.0`,
 `net48`, `netstandard2.0`), discovered from the package's own `lib`/`ref`/`build`/`tools`/
 `frameworkAssemblies` groups — so the rule must be satisfied **independently for every one of them**.
 

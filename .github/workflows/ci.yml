@@ -15,9 +15,32 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # global.json pins the SDK this repository builds with, and every dotnet command resolves
+      # against it, so installing a different band fails the first command with "A compatible .NET
+      # SDK was not found". Resolve it here rather than repeating the version in two workflows.
+      # The fallback only applies if global.json ever stops pinning one.
+      - name: Resolve the .NET SDK version
+        id: resolve-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pinned=""
+          if [ -f global.json ]; then
+            pinned="$(jq -r '.sdk.version // empty' global.json)"
+          fi
+
+          if [ -n "$pinned" ]; then
+            echo "global.json pins $pinned; installing that."
+            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+          else
+            echo "global.json pins no sdk.version; using the default (10.0.x)."
+            echo "dotnet-version=10.0.x" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
@@ -65,6 +88,94 @@ jobs:
 
       - name: Dogfood — the project builds itself
         run: "$RUNNER_TEMP/purview-build/purview-build"
+
+      - name: Remove temporary NuGet sources
+        if: always()
+        uses: ./actions/nuget-sources
+        with:
+          mode: remove
+
+  # NativeAOT is the only gate that catches reflection-based System.Text.Json: an AOT build throws on
+  # the first call instead of degrading, and neither the compiler nor an ordinary test run notices -
+  # release-explain --format=json passed every test while being dead in an AOT publish.
+  # `just publish-aot` is the same check locally; keep the two in step.
+  aot:
+    name: NativeAOT (${{ matrix.os }})
+    strategy:
+      # One platform failing must not hide the other two: a Windows-only linker or toolchain problem
+      # is exactly the kind of thing this matrix exists to distinguish.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # bash everywhere rather than branching on runner.os, so the steps below are identical on all
+        # three platforms. macOS and Windows runners both ship bash.
+        shell: bash
+    env:
+      # Used by the package source's %GITHUB_TOKEN% credential, so restores can read the feed.
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Resolve the .NET SDK version
+        id: resolve-sdk
+        shell: bash
+        # See the build job: global.json wins, and the fallback only applies if it pins nothing.
+        run: |
+          set -euo pipefail
+
+          pinned=""
+          if [ -f global.json ]; then
+            pinned="$(jq -r '.sdk.version // empty' global.json)"
+          fi
+
+          if [ -n "$pinned" ]; then
+            echo "global.json pins $pinned; installing that."
+            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+          else
+            echo "global.json pins no sdk.version; using the default (10.0.x)."
+            echo "dotnet-version=10.0.x" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+        with:
+          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
+
+      # The MSBuild SDK itself comes from the organisation feed, so this job restores just like the
+      # build job does. Fork pull requests cannot read that feed and restore from NuGet.org instead.
+      - name: Configure NuGet sources
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: ./actions/nuget-sources
+        with:
+          namespace: ${{ github.repository_owner }}
+          token: ${{ secrets.PURVIEW_PACKAGES_READ_TOKEN || github.token }}
+          source-mapping: ${{ vars.PURVIEW_NUGET_SOURCE_MAPPING }}
+
+      # One framework because publish refuses a multi-targeted project (NETSDK1129), and
+      # --use-current-runtime so each runner compiles for its own architecture.
+      - name: Publish with NativeAOT
+        run: |
+          set -euo pipefail
+
+          dotnet publish src/src/Build/Build.csproj \
+            --configuration Release \
+            --output .tools/aot \
+            -p:PurviewTargetFrameworkSet=Latest \
+            -p:PublishAot=true \
+            --use-current-runtime
+
+      # release-explain exits 1 whenever the current ref is ineligible, which is a verdict rather than
+      # a failure. What is asserted is that the process emitted the JSON contract at all: under AOT a
+      # reflection-based serializer throws and stdout stays empty.
+      - name: Smoke-test the native executable
+        run: |
+          set -euo pipefail
+
+          .tools/aot/Purview.Build --version
+          json="$(.tools/aot/Purview.Build release-explain --format=json || true)"
+          printf '%s' "$json" | jq -e '.verdict'
 
       - name: Remove temporary NuGet sources
         if: always()

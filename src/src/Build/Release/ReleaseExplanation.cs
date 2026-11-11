@@ -73,9 +73,29 @@ sealed record ReleaseExplanation
 		// to ', which is valid JSON but makes the contract unreadable in a workflow log and in
 		// the golden file that pins it. This output goes to a console and to jq, never into HTML.
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+		// Attaching the source-generated resolver keeps every option above while giving the serializer
+		// metadata it can see at compile time, which is the only form an AOT publish supports.
+		TypeInfoResolver = BuildJsonContext.Default,
 	};
 
-	public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+	/// <summary>
+	/// Renders the report as the JSON contract.
+	/// </summary>
+	/// <remarks>
+	/// The type info comes from the source-generated resolver, so this works in a NativeAOT publish,
+	/// where reflection-based serialization throws. .NET 11 added the generic
+	/// <c>GetTypeInfo&lt;T&gt;()</c>; the net10.0 leg casts the non-generic result instead.
+	/// </remarks>
+	public string ToJson()
+	{
+#if NET11_0_OR_GREATER
+		var typeInfo = JsonOptions.GetTypeInfo<ReleaseExplanation>();
+#else
+		var typeInfo = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<ReleaseExplanation>)
+			JsonOptions.GetTypeInfo(typeof(ReleaseExplanation));
+#endif
+		return JsonSerializer.Serialize(this, typeInfo);
+	}
 }
 
 sealed record ConfigurationReport

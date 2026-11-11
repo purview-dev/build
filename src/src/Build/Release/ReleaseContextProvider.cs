@@ -118,7 +118,7 @@ static class ReleaseContextProvider
 		{
 			try
 			{
-				return JsonSerializer.Deserialize<string[]>(content) ?? [];
+				return JsonSerializer.Deserialize(content, BuildJsonContext.Default.StringArray) ?? [];
 			}
 			catch (JsonException exception)
 			{

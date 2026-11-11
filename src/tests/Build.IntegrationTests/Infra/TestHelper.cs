@@ -63,12 +63,10 @@ static class TestHelper
 			);
 		}
 
-		PortablePdbBuilder pdbBuilder = new(
-			builder,
-			new int[64].ToImmutableArray(),
-			default,
-			_ => new BlobContentId(Guid.NewGuid(), 0)
-		);
+		PortablePdbBuilder pdbBuilder = new(builder, new int[64].ToImmutableArray(), default, _ => new BlobContentId(
+			Guid.NewGuid(),
+			0
+		));
 
 		BlobBuilder blob = new();
 		pdbBuilder.Serialize(blob);

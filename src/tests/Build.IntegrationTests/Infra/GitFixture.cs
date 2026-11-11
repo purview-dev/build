@@ -107,8 +107,8 @@ sealed class GitFixture : IDisposable
 		foreach (var argument in arguments)
 			startInfo.ArgumentList.Add(argument);
 
-		using var process =
-			Process.Start(startInfo) ?? throw new InvalidOperationException("git could not be started.");
+		using var process = Process.Start(startInfo)
+			?? throw new InvalidOperationException("git could not be started.");
 
 		var output = process.StandardOutput.ReadToEnd();
 		var error = process.StandardError.ReadToEnd();

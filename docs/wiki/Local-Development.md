@@ -20,6 +20,19 @@ The output goes to `.tools/local/` (gitignored) rather than `bin/Release/`, beca
 rebuilds the solution underneath itself and would otherwise overwrite the binary it is executing.
 `.config/dotnet-tools.json` pins only CSharpier and `dotnet-inspect`.
 
+`build-local-tool` publishes with `-p:PurviewTargetFrameworkSet=Latest`. `dotnet publish` refuses a
+multi-targeted project without a single framework (`NETSDK1129`), and the local tool only ever runs on
+this machine, so pinning to the newest target is the honest choice; the *packaged* tool keeps both
+targets so consumers on the LTS can still install it.
+
+`just publish-aot` is the separate question of whether the source survives NativeAOT, where
+reflection-based serialisation throws instead of degrading. It publishes to `.tools/aot` for the
+current platform and then runs `release-explain --format=json` through `jq`, which is the path that
+exercises the source-generated serializer. The same check runs in CI on Windows, Linux and macOS
+(`fail-fast: false`, so one platform's toolchain problem does not mask the other two). A published
+dotnet tool ships IL and cannot itself be AOT, so this is a portability gate, not a second
+distribution channel. See [.NET 11](Net-11.md) for the third-party trim warnings that remain.
+
 `just pipeline-dogfood` is the separate, slower check that the *packaged* tool is installable: it
 packs from source into `artifacts/dogfood`, installs from that folder alone (`--source`, not
 `--add-source`), and runs the result. CI and the release workflow do the same.
@@ -30,6 +43,7 @@ packs from source into `artifacts/dogfood`, installs from that folder alone (`--
 | --- | --- |
 | `just build` | Build `src/Build.slnx` (Debug) |
 | `just build-local-tool` | Publish the tool from source (Release) to `.tools/local`, which every `pipeline-*` recipe then runs |
+| `just publish-aot` | Publish the tool as a NativeAOT executable to `.tools/aot` for the current platform and smoke-test it |
 | `just test` / `just test-unit` | `just test` runs every suite, the same set CI runs; `just test-unit` narrows to `/*/*/*/*[Category=Unit]` |
 | `just lint-check` / `just lint-fix` | CSharpier check / format |
 | `just pack` | `dotnet pack` with the current `package.json` version |
