@@ -1,6 +1,6 @@
 {
   "name": "build",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Shared build/test/release pipeline for the purview-dev organisation, packaged as a pinned .NET tool with a GitHub composite action and reusable workflows.",
   "license": "MIT",
   "author": {
@@ -8,6 +8,13 @@
     "url": "https://kieronlanning.dev/"
   },
   "private": true,
+  "keywords": [
+    "build",
+    "pipeline",
+    "modular-pipelines",
+    "dotnet-tool",
+    "ci-cd"
+  ],
   "homepage": "https://purview.dev/projects/build/",
   "bugs": {
     "url": "https://github.com/purview-dev/build/issues"

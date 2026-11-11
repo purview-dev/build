@@ -32,5 +32,8 @@
 	},
 	"Release": {
 		"Mode": "None"
+	},
+	"PackageJson": {
+		"Enabled": true
 	}
 }

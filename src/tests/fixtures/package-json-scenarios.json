@@ -1,0 +1,943 @@
+{
+	"$comment": [
+		"The single source of truth for package.json validation. Both the data-driven TUnit suite",
+		"(PackageJsonScenarioTests) and the `just package-matrix` recipe, which runs each case through",
+		"the real `purview-build package-validate` CLI, read this file. Adding a rule means appending",
+		"cases here, not writing test code.",
+		"",
+		"Fields: profile (PackageJson:Profile, default Auto), projectType (Build:ProjectType),",
+		"packsNuGetPackages (Build:RunPack), runTests/runLint, additionalRequiredFields, disabledRules,",
+		"treatWarningsAsErrors, packageJson (the file's contents), and the expected succeeded/exitCode/",
+		"profile plus the exact rule IDs that must fail and warn. 'errors' and 'warnings' are rule IDs,",
+		"not messages, so rewording a finding is not a fixture change."
+	],
+	"scenarios": [
+		{
+			"name": "dotnet-nuget-complete-passes",
+			"why": "A .NET repository that packs NuGet packages: the file carries the release version and full metadata.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets", "contoso"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-solution-without-packing-passes",
+			"why": "A .NET repository that packs nothing resolves to DotNetSolution; the same file still passes.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "contoso.tools",
+				"version": "1.2.3",
+				"description": "Tooling for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/tools",
+				"bugs": { "url": "https://contoso.example/tools/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/tools.git" },
+				"keywords": ["tooling"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetSolution",
+				"errors": [],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-package-complete-passes",
+			"why": "A Web repository whose file is published to npm: everything a consumer needs is declared.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso", "url": "https://contoso.example" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-app-complete-passes",
+			"why": "A Web application: private, so the publish-only rules are skipped rather than failed.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/portal",
+				"version": "1.0.0",
+				"description": "The Contoso documentation portal.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example",
+				"bugs": { "url": "https://contoso.example/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/portal.git" },
+				"private": true,
+				"engines": { "node": ">=20" },
+				"scripts": {
+					"build": "astro build",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebApp",
+				"errors": [],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-missing-description-fails",
+			"why": "The description is what a registry search result shows, so its absence is an error.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG003"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-weak-description-warns",
+			"why": "A token description is advisory: it exists, but it says nothing useful.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widgets.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG003"]
+			}
+		},
+		{
+			"name": "dotnet-missing-license-fails",
+			"why": "A consumer cannot act on a package that declares no licence at all.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG004"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-unrecognised-license-warns",
+			"why": "An unlisted identifier is advisory, so a correct-but-unlisted SPDX value never fails a build.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT-ish",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG004"]
+			}
+		},
+		{
+			"name": "dotnet-missing-links-warns",
+			"why": "With neither a homepage nor a bug tracker, users have nowhere to read docs or report a problem.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG007"]
+			}
+		},
+		{
+			"name": "dotnet-missing-repository-fails",
+			"why": "A published package with no source link cannot be inspected or contributed to.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG005"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-repository-shorthand-warns",
+			"why": "The shorthand string form omits the repository type registries link against.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": "https://contoso.example/widgets",
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG005"]
+			}
+		},
+		{
+			"name": "dotnet-missing-author-fails",
+			"why": "A published package needs a named maintainer.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG006"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-not-private-warns",
+			"why": "A .NET repository's file is not an npm package, so npm terms it publishable until 'private' is set.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"]
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG009"]
+			}
+		},
+		{
+			"name": "dotnet-four-part-version-warns",
+			"why": "Version:Strictness=NuGet accepts four-part versions, which npm and other strict consumers reject.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3.4",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG002"]
+			}
+		},
+		{
+			"name": "dotnet-missing-version-fails",
+			"why": "The version is the pipeline's release version, so its absence is fatal wherever it is read.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG002"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "dotnet-placeholder-version-warns",
+			"why": "0.0.0 parses, so it is reported rather than failed — but it must not reach a release.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "0.0.0",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "DotNetNuGet",
+				"errors": [],
+				"warnings": ["PKG002"]
+			}
+		},
+		{
+			"name": "dotnet-extra-required-field-fails",
+			"why": "PackageJson:AdditionalRequiredFields is the escape hatch for one organisation's own requirement.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": true,
+			"additionalRequiredFields": ["funding"],
+			"packageJson": {
+				"name": "contoso.widgets",
+				"version": "1.2.3",
+				"description": "Widget primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/widgets",
+				"bugs": { "url": "https://contoso.example/widgets/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/widgets.git" },
+				"keywords": ["widgets"],
+				"private": true
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "DotNetNuGet",
+				"errors": ["PKG014"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-package-private-fails",
+			"why": "A published npm package cannot be private: npm refuses to publish it. The profile is declared, since Auto derives the profile FROM the flag.",
+			"profile": "WebPackage",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"private": true,
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": ["PKG009"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-app-not-private-fails",
+			"why": "An application without 'private' would be published by a stray 'npm publish'. The profile is declared, since Auto derives the profile FROM the flag.",
+			"profile": "WebApp",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/portal",
+				"version": "1.0.0",
+				"description": "The Contoso documentation portal.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example",
+				"bugs": { "url": "https://contoso.example/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/portal.git" },
+				"engines": { "node": ">=20" },
+				"scripts": {
+					"build": "astro build",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebApp",
+				"errors": ["PKG009"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-package-invalid-name-fails",
+			"why": "npm rejects an uppercase name outright, so a published package cannot ship one.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "Contoso-Core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": ["PKG001"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-app-imperfect-name-warns",
+			"why": "An application's name is never sent to npm, so the same defect is only advisory there.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "Contoso-Portal",
+				"version": "1.0.0",
+				"description": "The Contoso documentation portal.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example",
+				"bugs": { "url": "https://contoso.example/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/portal.git" },
+				"private": true,
+				"engines": { "node": ">=20" },
+				"scripts": {
+					"build": "astro build",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebApp",
+				"errors": [],
+				"warnings": ["PKG001"]
+			}
+		},
+		{
+			"name": "web-package-four-part-version-fails",
+			"why": "npm only accepts SemVer 2.0, so a four-part version is fatal for a published package.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3.4",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": ["PKG002"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-package-missing-keywords-warns",
+			"why": "Keywords drive registry discovery, so a published package without them is hard to find.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": ["PKG008"]
+			}
+		},
+		{
+			"name": "web-package-missing-engines-fails",
+			"why": "A consumer installing the package needs to know which Node versions it supports.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": ["PKG010"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-app-missing-engines-warns",
+			"why": "An application's engine range is advisory, not something a consumer resolves against.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/portal",
+				"version": "1.0.0",
+				"description": "The Contoso documentation portal.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example",
+				"bugs": { "url": "https://contoso.example/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/portal.git" },
+				"private": true,
+				"scripts": {
+					"build": "astro build",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebApp",
+				"errors": [],
+				"warnings": ["PKG010"]
+			}
+		},
+		{
+			"name": "web-package-missing-entry-point-warns",
+			"why": "Without an entry point a consumer cannot import the published package.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": ["PKG011"]
+			}
+		},
+		{
+			"name": "web-package-missing-files-warns",
+			"why": "Without 'files', npm publishes everything that is not ignored, which is rarely deliberate.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": ["PKG013"]
+			}
+		},
+		{
+			"name": "web-package-missing-build-script-fails",
+			"why": "The build step runs the configured build script; without it the run fails later anyway.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": ["PKG012"],
+				"warnings": []
+			}
+		},
+		{
+			"name": "web-package-missing-lint-script-warns",
+			"why": "The lint script is best practice rather than a requirement, so it is only named.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"keywords": ["contoso", "core"],
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": ["PKG012"]
+			}
+		},
+		{
+			"name": "disabled-rules-suppress-findings",
+			"why": "PackageJson:DisabledRules is the documented way to opt out of one rule deliberately.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"disabledRules": ["PKG008"],
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": true,
+				"exitCode": 0,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": []
+			}
+		},
+		{
+			"name": "warnings-fail-when-escalated",
+			"why": "PackageJson:TreatWarningsAsErrors turns the same warning into a failing run.",
+			"profile": "Auto",
+			"projectType": "Web",
+			"packsNuGetPackages": false,
+			"treatWarningsAsErrors": true,
+			"packageJson": {
+				"name": "@contoso/core",
+				"version": "1.2.3",
+				"description": "Core primitives for Contoso applications.",
+				"license": "MIT",
+				"author": { "name": "Contoso" },
+				"homepage": "https://contoso.example/core",
+				"bugs": { "url": "https://contoso.example/core/issues" },
+				"repository": { "type": "git", "url": "git+https://contoso.example/core.git" },
+				"engines": { "node": ">=20" },
+				"exports": { ".": "./dist/index.js" },
+				"files": ["dist"],
+				"scripts": {
+					"build": "tsc -b",
+					"test": "node --test",
+					"lint": "oxlint",
+					"format:check": "oxfmt --check"
+				}
+			},
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "WebPackage",
+				"errors": [],
+				"warnings": ["PKG008"]
+			}
+		},
+		{
+			"name": "unreadable-file-fails",
+			"why": "A file that cannot be read at all is reported as PKG000, in the same shape as any finding.",
+			"profile": "Auto",
+			"projectType": "DotNet",
+			"packsNuGetPackages": false,
+			"packageJson": [],
+			"expected": {
+				"succeeded": false,
+				"exitCode": 1,
+				"profile": "Auto",
+				"errors": ["PKG000"],
+				"warnings": []
+			}
+		}
+	]
+}

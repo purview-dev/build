@@ -233,6 +233,8 @@ Secrets must not be committed. They are supplied through `NUGET_APIKEY` (or `NuG
 
 Release eligibility is rule-based and selected per repository with `Release:Eligibility:Policy`: `ReleaseOnMain` (the default, reproducing the pipeline's long-standing behaviour), `TrunkReservesMinor` (per-line release branches), or `FourPartServicing`. Run `purview-build release-explain` to see the decision, the rule trail and the publication that would result, without running anything. See [release models](docs/wiki/Release-Models.md).
 
+The root `package.json` can be checked against the content a best-in-class package of the repository's kind is expected to declare: run `purview-build package-validate` (exit `0`/`1`, `--format=json` for a workflow), and set `PackageJson:Enabled=true` to add it to the pipeline. A `.NET` repository that packs, one that does not, a published npm package and a web application are judged differently — descriptions, versions, licence, repository, author, engines, scripts and the `private` flag — and every rule is reported, in ID order. See [package.json validation](docs/wiki/Package-Json-Validation.md).
+
 See the [Documentation](#documentation) section below for the architecture, configuration reference, and release strategy.
 
 ## GitHub Packages
@@ -403,12 +405,12 @@ Other repositories can opt in later with only steps 1–2; nothing in Purview.Bu
 ## Pipeline
 
 ```text
-CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → Validate → Publish ─┬→ NuGet.org
-                    └→ ReportEligibility                                                          └→ GitHub Packages (opt-in)
-                                                                                      → GitHub release
+CleanArtifacts → { Version → ValidatePackageJson, Restore → Build → Test, Restore → Lint } → Pack → Validate → Publish ─┬→ NuGet.org
+                    └→ ReportEligibility                                                                                 └→ GitHub Packages (opt-in)
+                                                                                                          → GitHub release
 ```
 
-`Lint` and `ReportEligibility` are gates and reports, not inputs: nothing depends on either.
+`Lint`, `ReportEligibility` and `ValidatePackageJson` are gates and reports, not inputs: nothing depends on any of them.
 
 `CleanArtifacts` deletes and recreates `Build:ArtifactsFolder` before anything else runs, so pack, validation, publishing, and release uploads only ever see the packages from the current run (set `Build:CleanArtifacts=false` to keep existing artifacts). `Version` resolves the release units from `Version:Source` (default: the `version` field of the root `package.json`); `Version:Strictness` defaults to `NuGet`, which accepts four-part versions. `ReportEligibility` evaluates the release rules and reports the verdict without acting on it. Lint restores local tools and runs CSharpier (`Build:CSharpierPath` runs a vendored CSharpier assembly instead, for an unreleased build). Tests are discovered under `Build:TestRoot`/`Build:TestPatterns` and run with a TUnit tree-node filter (or an xUnit filter). Pack validation inspects each `.nupkg`/`.snupkg` against required/forbidden content rules (glob patterns) and can enforce source link, deterministic builds, and compiler flags on the packaged assemblies. Analyzer-only packages can embed portable PDBs under `analyzers/dotnet/` without requiring a `.snupkg`. Publication and GitHub release steps are controlled by `Release:Mode` (`None`, `LocalNuGet`, `NuGet`, `GitHubRelease`) — a preset over the independent `Release:Publish` and `Release:GitHubRelease` switches — and by the `Build__Run*` switches. `Release:DryRun` runs everything and skips both publish steps. `LocalNuGet` is only honoured when the tool runs locally; it is ignored in CI (for example via a reusable workflow).
 

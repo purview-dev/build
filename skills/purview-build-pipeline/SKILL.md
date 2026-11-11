@@ -17,12 +17,12 @@ define ordering, and `ModuleConfiguration` skip conditions gate opt-in behaviour
 `Build` and `Release`.
 
 ```text
-CleanArtifacts → { Version, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish → GitHub release
+CleanArtifacts → { Version → ValidatePackageJson, Restore → Build → Test, Restore → Lint } → Pack → ValidatePack → Publish → GitHub release
                    └→ ReportEligibility
 ```
 
-**`Lint` and `ReportEligibility` are gates and reports, not inputs.** Nothing depends on either, so
-neither feeds `Pack`.
+**`Lint`, `ReportEligibility` and `ValidatePackageJson` are gates and reports, not inputs.** Nothing
+depends on any of them, so none feeds `Pack`.
 
 Every module logs a line when it starts (`Running BuildModule...`) before its command output, so a
 long run still reports progress in CI logs where the live progress display is disabled.
@@ -73,6 +73,26 @@ workflow-only gate never surfaced in the tool's own log.
 Every failure path inside it is a **warning**. A misconfigured policy or an unreadable simulated tag
 list must not fail a build that would otherwise succeed. When `Release:Context:*` supplied a
 simulated context, the report says so.
+
+## ValidatePackageJson
+
+Category `Build`. Depends on `Version` — the version it resolved is the version the file must declare.
+*Skipped unless* `PackageJson:Enabled` is true: the check is opt-in, because a root `package.json`
+already exists in every repository.
+
+Validates that file against the rules for the repository's **profile**, logs every rule's outcome in
+ID order (`pass`/`warning`/`fail`/`skipped`), and **fails the run on any error-level finding** —
+unlike `ReportEligibility`, this one is a gate.
+
+The profile is derived from `Build:ProjectType`, `Build:RunPack` and the file's own `private` flag:
+`DotNetNuGet`, `DotNetSolution`, `WebPackage` or `WebApp`. `PackageJson:Profile` overrides it, which
+is the only way to catch a `private` flag that contradicts the repository — Auto derives the profile
+*from* that flag. Severity is profile-dependent: a missing `license` fails a published package, and a
+four-part version fails a `WebPackage` (npm requires SemVer 2.0) while merely warning elsewhere
+(`Version:Strictness=NuGet` accepts it).
+
+The same validation is reachable without the pipeline as `purview-build package-validate`, which
+builds no graph at all and exits 0/1. The `purview-build-package-json` skill has the rules.
 
 ## Restore
 
@@ -199,5 +219,6 @@ it but does not skip an existing tag itself.
 ## Related skills
 
 `purview-build-configuration` for every setting named above, `purview-build-pack-validation` for
-what `ValidatePack` actually checks, and `purview-build-release-eligibility` for the verdict
+what `ValidatePack` actually checks, `purview-build-package-json` for what `ValidatePackageJson`
+checks, and `purview-build-release-eligibility` for the verdict
 `ReportEligibility` prints.

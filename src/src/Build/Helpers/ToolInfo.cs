@@ -34,10 +34,16 @@ static class ToolInfo
 		Usage:
 		  purview-build [configuration overrides]
 		  purview-build release-explain [--format=json]
+		  purview-build package-validate [--format=json]
 
 		Commands:
 		  release-explain  Explain the release decision and exit, without running any module.
 		                   --format=json emits the stable contract the reusable workflow consumes.
+		  package-validate Validate the repository root package.json against the rules for the
+		                   repository's kind (.NET with or without NuGet packages, npm package, or
+		                   web application), and exit: 0 when it passes, 1 when it does not.
+		                   --format=json emits a report for a workflow or jq. Needs no
+		                   configuration; PackageJson:Enabled only adds it to the pipeline.
 
 		Options:
 		  -v, --version        Print the {{Name}} version and exit.
@@ -64,9 +70,10 @@ static class ToolInfo
 		Build:WebBuildOutput, PackValidation globs) always resolve against the repository root, wherever
 		the configuration file itself was found.
 
-		Modules run in dependency order: CleanArtifacts, Version, ReportEligibility, Restore, Build, Lint,
-		RunTests, Pack, ValidatePack, PublishNuGet, PublishLocalNuGet, CreateGitHubRelease. Each logs a line
-		when it starts and when it finishes; a failing run reports the failed module's error and exits 1.
+		Modules run in dependency order: CleanArtifacts, Version, ReportEligibility, ValidatePackageJson,
+		Restore, Build, Lint, RunTests, Pack, ValidatePack, PublishNuGet, PublishLocalNuGet,
+		CreateGitHubRelease. Each logs a line when it starts and when it finishes; a failing run reports
+		the failed module's error and exits 1.
 
 		Required dependencies of the configured capabilities (Build:Solution, Build:CSharpierPath,
 		PublishLocalNuGet:LocalFeedPath, NuGet credentials, GitHub token and repository id) are checked

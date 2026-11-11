@@ -124,6 +124,7 @@ command line
 | `-v`, `--version` | Print the tool version and exit without running the pipeline. |
 | `-h`, `--help`, `-?` | Print usage, options, the probe order, and the resolved configuration path (or "none found"), then exit. |
 | `release-explain` | Print the release decision and exit without running any module. `--format=json` emits the stable contract the release action consumes. See [Local Development](Local-Development.md). |
+| `package-validate` | Validate the root `package.json` against the rules for the repository's kind and exit without running any module: `0` when it passes, `1` when it does not. `--format=json` emits the report. See [package.json Validation](Package-Json-Validation.md). |
 
 Failures are reported the way a CLI build tool reports them: the tool prints the failing module and that module's
 output, then exits with code 1. Set `PURVIEW_BUILD_STACKTRACE=1` to add stack traces when diagnosing the tool itself.
@@ -179,6 +180,19 @@ Content entry paths and package-id keys are matched as globs (case-insensitive),
 > `RequiredCompilerFlags` is the exception that proves the rule, and the reason its initializer is now `[]` rather than `["optimization=release"]`: **an empty JSON array contributes no configuration keys**, so the binder has nothing to overwrite the initializer with. A non-empty code default therefore survived both `appsettings.json` and a consumer's `purview-build.json`, which meant assembly inspection was effectively always on and could not be switched off from configuration at all. Setting a value in configuration still works normally; only clearing one back to empty relies on the initializer already being empty. The same caveat applies to any future array setting.
 >
 > `RequireExplicitContent` is the opposite case and was previously documented incorrectly as `false`. It was **absent** from `appsettings.json`, so the C# initialiser's `true` survived and the effective default has always been `true`. It is now stated explicitly in `appsettings.json` so the shipped value is visible rather than inferred. Behaviour is unchanged. Note what `true` means with an empty `RequiredContent`: every produced package must declare its content, so a repository that packs anything without a matching `RequiredContent` rule gets an error. Set `"RequireExplicitContent": false` to opt out, as this repository's own `purview-build.json` does.
+
+## `PackageJson`
+
+Opt-in validation of the repository root `package.json`. See
+[package.json Validation](Package-Json-Validation.md) for the rules and the profiles.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Enabled` | `false` | Adds `ValidatePackageJsonModule` to the pipeline. The standalone `package-validate` command always works, whether or not this is set |
+| `Profile` | `Auto` | Derives the profile from `Build:ProjectType`, `Build:RunPack` and the file's own `private` flag. `DotNetNuGet`, `DotNetSolution`, `WebPackage` and `WebApp` declare it instead, which is the only way to catch a `private` flag that contradicts the repository |
+| `DisabledRules` | `[]` | `PKG0nn` rule IDs to skip, e.g. `["PKG008"]`. Unknown IDs are ignored |
+| `AdditionalRequiredFields` | `[]` | Extra top-level fields the repository requires, e.g. `["funding"]`; a missing or empty field fails `PKG014` |
+| `TreatWarningsAsErrors` | `false` | Makes a warning-level finding fail the run, once the file is clean |
 
 ## `NuGet`
 

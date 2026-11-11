@@ -41,6 +41,12 @@ Deliberately not category `Release`: it observes, and it must never decline a re
 
 Every failure path inside it is a warning. A misconfigured policy or an unreadable simulated tag list must not fail a build that would otherwise succeed. When `Release:Context:*` supplied a simulated context, the report says so.
 
+## ValidatePackageJsonModule
+
+Category `Build`. Depends on `VersionModule`. Skip condition: skipped unless `PackageJson:Enabled` is true — the check is opt-in, because the file already exists in every repository.
+
+Validates the repository root `package.json` against the rules for the repository's profile (`.NET` with or without NuGet packages, published npm package, or web application), logs every rule's outcome in ID order, and fails the run when any rule reports an error. `PackageJson:Profile` overrides the derived profile; `PackageJson:DisabledRules`, `PackageJson:AdditionalRequiredFields` and `PackageJson:TreatWarningsAsErrors` tune the check. The same validation is available without the pipeline as `purview-build package-validate`. See [package.json Validation](Package-Json-Validation.md).
+
 ## RestoreModule
 
 Runs `Build:WebInstallCommand` (default `bun install`) when `Build:ProjectType` is `Web`, otherwise `dotnet restore` against `Build:Solution`.

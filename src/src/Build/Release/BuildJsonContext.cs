@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Purview.Build.PackageJson;
 
 namespace Purview.Build.Release;
 
@@ -13,5 +14,6 @@ namespace Purview.Build.Release;
 /// cost from the ordinary framework-dependent tool, so the metadata is worth having either way.
 /// </remarks>
 [JsonSerializable(typeof(ReleaseExplanation))]
+[JsonSerializable(typeof(PackageJsonValidationReport))]
 [JsonSerializable(typeof(string[]))]
 partial class BuildJsonContext : JsonSerializerContext;

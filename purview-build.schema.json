@@ -205,6 +205,54 @@
 				"^\\$": true
 			}
 		},
+		"PackageJson": {
+			"type": "object",
+			"properties": {
+				"Enabled": {
+					"type": "boolean",
+					"description": "When true, ValidatePackageJsonModule runs as part of the pipeline.",
+					"default": false
+				},
+				"Profile": {
+					"type": "string",
+					"enum": [
+						"Auto",
+						"DotNetNuGet",
+						"DotNetSolution",
+						"WebPackage",
+						"WebApp"
+					],
+					"description": "The registry profile whose rules apply, or Auto to derive it from the project type and the file itself.",
+					"default": "Auto"
+				},
+				"DisabledRules": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Rule IDs to skip, e.g. [\u0022PKG008\u0022] for a repository that deliberately declares no keywords. Unknown IDs are ignored.",
+					"default": []
+				},
+				"AdditionalRequiredFields": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Extra top-level fields the repository requires on top of the built-in rules, e.g. [\u0022funding\u0022]. Any that is missing or empty is reported by PKG014.",
+					"default": []
+				},
+				"TreatWarningsAsErrors": {
+					"type": "boolean",
+					"description": "When true, a warning-level finding fails the run exactly as an error-level one does. Useful once the file is clean, to stop it drifting back.",
+					"default": false
+				}
+			},
+			"additionalProperties": false,
+			"patternProperties": {
+				"^\\$": true
+			},
+			"description": "Opt-in validation of the repository root package.json against the content a best-in-class package of the repository\u0027s kind is expected to declare."
+		},
 		"NuGet": {
 			"type": "object",
 			"properties": {

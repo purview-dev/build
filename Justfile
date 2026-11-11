@@ -121,6 +121,7 @@ publish-aot:
         -p:Version={{ current_version }} -p:PackageVersion={{ current_version }}
     "{{ aot_dir }}/Purview.Build" --version
     "{{ aot_dir }}/Purview.Build" release-explain --format=json | jq -e '.verdict'
+    "{{ aot_dir }}/Purview.Build" package-validate --format=json | jq -e '.succeeded'
 
 # Explain the release decision for the working tree, without running any module or mutating anything
 [group('Release')]
@@ -146,6 +147,12 @@ release-matrix:
 config-matrix:
     just build-local-tool
     sh src/tests/scenarios/run-config-matrix.sh
+
+# Run every package.json validation scenario through the real CLI; non-zero on any mismatch
+[group('Build and Test')]
+package-matrix:
+    just build-local-tool
+    sh src/tests/scenarios/run-package-matrix.sh
 
 # Regenerate the release-explain JSON golden file, then show what changed
 [group('Release')]
