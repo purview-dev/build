@@ -1,0 +1,60 @@
+name: Purview .NET SDK
+
+description: >-
+  Installs the .NET SDK the repository's global.json pins, or the dotnet-version input when global.json
+  pins no sdk.version. Use it in any job that runs dotnet and is not a call to a shared workflow: every
+  dotnet command resolves against global.json, so installing anything else fails the job at its first
+  dotnet command with "A compatible .NET SDK was not found", whatever dotnet-version was asked for.
+
+outputs:
+  dotnet-version:
+    description: The SDK version that was installed - the global.json pin, or the input fallback.
+    value: ${{ steps.resolve-sdk.outputs.dotnet-version }}
+
+inputs:
+  dotnet-version:
+    description: >-
+      .NET SDK to install when global.json pins no sdk.version. Ignored when it pins one, because
+      global.json is the single source of truth whenever it states a version.
+    required: false
+    default: 10.0.x
+
+runs:
+  using: composite
+  steps:
+    # global.json is the single source of truth for the SDK whenever it pins one. Deriving it here means
+    # a repository states its SDK once, instead of repeating it in global.json, pr.yml and release.yml
+    # and keeping three copies in step by hand.
+    #
+    # `actions/setup-dotnet`'s own `global-json-file` input is not a substitute: it resolves the version
+    # itself and, when it cannot install it, falls back to the LTS channel, reports success, and leaves
+    # the job to fail at its first dotnet command. Resolving here and installing an explicit version is
+    # what makes the mismatch visible at the install instead.
+    #
+    # Caller input reaches the script through env, never by interpolating an expression into the script:
+    # the value is substituted into the script text before bash sees it, so a crafted input would run as
+    # shell.
+    - name: Resolve the .NET SDK version
+      id: resolve-sdk
+      shell: bash
+      env:
+        INPUT_DOTNET_VERSION: ${{ inputs.dotnet-version }}
+      run: |
+        set -euo pipefail
+
+        pinned=""
+        if [ -f global.json ]; then
+          pinned="$(jq -r '.sdk.version // empty' global.json)"
+        fi
+
+        if [ -n "$pinned" ]; then
+          echo "global.json pins $pinned; installing that."
+          echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
+        else
+          echo "global.json pins no sdk.version; using the dotnet-version input ($INPUT_DOTNET_VERSION)."
+          echo "dotnet-version=$INPUT_DOTNET_VERSION" >> "$GITHUB_OUTPUT"
+        fi
+
+    - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+      with:
+        dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}

@@ -93,41 +93,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # global.json is the single source of truth for the SDK whenever it pins one. Every dotnet
-      # command in the job resolves against it, so installing anything else fails the whole job at
-      # the first one - "A compatible .NET SDK was not found" - no matter what dotnet-version says.
-      # Deriving it here means a consuming repository states its SDK once, instead of repeating it
-      # in global.json, pr.yml and release.yml and keeping three copies in step by hand.
-      #
-      # When global.json pins nothing, the dotnet-version input applies, which is the behaviour
-      # every repository had before.
-      - name: Resolve the .NET SDK version
-        id: resolve-sdk
-        shell: bash
-        # Caller input reaches the script through env, never by interpolating an expression into the script: the
-        # value is substituted into the script text before bash sees it, so a crafted input would
-        # run as shell.
-        env:
-          INPUT_DOTNET_VERSION: ${{ inputs.dotnet-version }}
-        run: |
-          set -euo pipefail
-
-          pinned=""
-          if [ -f global.json ]; then
-            pinned="$(jq -r '.sdk.version // empty' global.json)"
-          fi
-
-          if [ -n "$pinned" ]; then
-            echo "global.json pins $pinned; installing that."
-            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
-          else
-            echo "global.json pins no sdk.version; using the dotnet-version input ($INPUT_DOTNET_VERSION)."
-            echo "dotnet-version=$INPUT_DOTNET_VERSION" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+      # The SDK comes from `actions/dotnet-sdk`, the one implementation of "install what global.json
+      # pins". It is shared with this repository's own ci.yml/release.yml and with any consuming job
+      # that is not a call to a shared workflow, so the resolution cannot drift between them.
+      - uses: purview-dev/build/actions/dotnet-sdk@main
         with:
-          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
+          dotnet-version: ${{ inputs.dotnet-version }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
