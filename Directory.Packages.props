@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<RoslynVersion>5.9.0</RoslynVersion>
-		<TUnitVersion>1.81.16</TUnitVersion>
+		<TUnitVersion>1.83.0</TUnitVersion>
 		<DotNetRuntimeVersion>11.0.0</DotNetRuntimeVersion>
 		<ModularPipelinesVersion>3.2.8</ModularPipelinesVersion>
 		<NuGetPackagingVersion>7.9.0</NuGetPackagingVersion>
