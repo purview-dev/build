@@ -68,6 +68,7 @@ the freshly built `.tools/local/Purview.Build`.
 | `just release-simulate ref version *args` | Explain the decision for a simulated ref and version |
 | `just release-matrix` | Run every eligibility scenario through the real CLI; non-zero on any mismatch |
 | `just config-matrix` | Run every config-resolution scenario through the real CLI |
+| `just package-matrix` | Run every `package.json` validation scenario through the real CLI |
 | `just release-explain-golden` | Regenerate the `release-explain` JSON golden file and show the diff |
 
 `just release-matrix` and `just config-matrix` are the two commands to run before opening a pull
@@ -79,6 +80,7 @@ fixture files drive the TUnit suites:
 
 - `src/tests/fixtures/eligibility-scenarios.json`
 - `src/tests/fixtures/config-resolution-scenarios.json`
+- `src/tests/fixtures/package-json-scenarios.json`
 
 Adding a rule or a probe location means appending cases to those files, not writing test code.
 

@@ -16,6 +16,9 @@ enum ToolCommand
 
 	/// <summary>Explain the release decision and exit, without running any module.</summary>
 	ReleaseExplain,
+
+	/// <summary>Validate the root package.json and exit, without running any module.</summary>
+	PackageValidate,
 }
 
 /// <summary>
@@ -49,6 +52,8 @@ sealed record ToolCommandLine(
 {
 	const string ReleaseExplainVerb = "release-explain";
 
+	const string PackageValidateVerb = "package-validate";
+
 	static readonly string[] ConfigFlags = ["--config", "-c"];
 
 	public static ToolCommandLine Parse(string[] args)
@@ -73,11 +78,23 @@ sealed record ToolCommandLine(
 		{
 			var arg = args[index];
 
-			if (string.Equals(arg, ReleaseExplainVerb, StringComparison.OrdinalIgnoreCase))
+			if (TryReadVerb(arg, ReleaseExplainVerb, command, ToolCommand.ReleaseExplain, out var explained))
 			{
-				if (command == ToolCommand.RunPipeline)
-					command = ToolCommand.ReleaseExplain;
+				command = explained;
+				continue;
+			}
 
+			if (
+				TryReadVerb(
+					arg,
+					PackageValidateVerb,
+					command,
+					ToolCommand.PackageValidate,
+					out var validating
+				)
+			)
+			{
+				command = validating;
 				continue;
 			}
 
@@ -105,6 +122,31 @@ sealed record ToolCommandLine(
 		}
 
 		return new(command, configPath, userConfig, format, [.. remaining]);
+	}
+
+	/// <summary>
+	/// Consumes one of the tool's own verbs, which is never a configuration override: recognising it
+	/// here keeps the bare word away from the configuration command-line provider, which accepts only
+	/// <c>--key=value</c> forms. An informational command (<c>--help</c>/<c>--version</c>) wins over
+	/// any verb.
+	/// </summary>
+	static bool TryReadVerb(
+		string arg,
+		string verb,
+		ToolCommand current,
+		ToolCommand target,
+		out ToolCommand command
+	)
+	{
+		command = current;
+
+		if (!string.Equals(arg, verb, StringComparison.OrdinalIgnoreCase))
+			return false;
+
+		if (current == ToolCommand.RunPipeline)
+			command = target;
+
+		return true;
 	}
 
 	/// <summary>

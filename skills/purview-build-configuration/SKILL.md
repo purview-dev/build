@@ -128,6 +128,20 @@ drop a trailing `.0` revision and desynchronise the tag from the declared versio
 `Release:Context` (`Ref`, `ExistingTags`, `PublishedVersions`, for simulated evaluation) are covered
 by the `purview-build-release-eligibility` skill.
 
+## `PackageJson`
+
+Opt-in validation of the repository-root `package.json`, and the settings that tune it.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Enabled` | `false` | adds `ValidatePackageJsonModule` to the pipeline. The `package-validate` command works regardless |
+| `Profile` | `Auto` | `Auto` derives it from `Build:ProjectType`, `Build:RunPack` and the file's own `private` flag. `DotNetNuGet`, `DotNetSolution`, `WebPackage` and `WebApp` declare it instead — the only way to catch a `private` flag that contradicts the repository |
+| `DisabledRules` | `[]` | `PKG0nn` IDs to skip, e.g. `["PKG008"]`. Unknown IDs are ignored |
+| `AdditionalRequiredFields` | `[]` | extra top-level fields this repository requires, e.g. `["funding"]`; a missing one fails `PKG014` |
+| `TreatWarningsAsErrors` | `false` | fail the run on a warning, once the file is clean |
+
+The `purview-build-package-json` skill has the rules, the profiles, and the JSON contract.
+
 ## Secrets
 
 Never committed; supplied at runtime.
@@ -175,11 +189,12 @@ fails immediately instead of skipping the publish or release module after the bu
 | `-v`, `--version` | print the tool version and exit |
 | `-h`, `--help`, `-?` | usage, options, the probe order, and the **resolved configuration path** (or "none found") |
 | `release-explain` | print the release decision and exit, running no module. `--format=json` emits the stable contract the release action consumes |
+| `package-validate` | validate the root `package.json` and exit, running no module: `0` when it passes, `1` when it does not. `--format=json` emits the report |
 
 `--help` printing the resolved path is the fastest answer to "which config is it actually reading?".
 
 ## Related skills
 
 `purview-build-adoption` for wiring it up, `purview-build-pipeline` for what each module does,
-`purview-build-pack-validation` for the content rules, and `purview-build-release-eligibility` for
-the `REL0nn` policies.
+`purview-build-pack-validation` for the content rules, `purview-build-package-json` for the
+`package.json` rules, and `purview-build-release-eligibility` for the `REL0nn` policies.

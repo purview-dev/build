@@ -207,6 +207,7 @@ Before running anything destructive, two commands tell you what *would* happen:
 ```shell
 dotnet purview-build --help              # usage, probe order, and the resolved config path
 dotnet purview-build release-explain     # the release decision, without running a module
+dotnet purview-build package-validate    # check the root package.json: exit 0 when it passes
 ```
 
 ## Releasing a consuming repository
@@ -230,4 +231,5 @@ same name first.
 
 `purview-build-configuration` for the full `purview-build.json` reference and the secrets,
 `purview-build-pipeline` for the modules and their order, `purview-build-pack-validation` for the
-package rules, and `purview-build-release-eligibility` for the `REL0nn` rules and the three models.
+package rules, `purview-build-package-json` for the root `package.json` check, and
+`purview-build-release-eligibility` for the `REL0nn` rules and the three models.

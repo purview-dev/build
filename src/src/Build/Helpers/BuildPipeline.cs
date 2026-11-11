@@ -94,6 +94,9 @@ static class BuildPipeline
 		builder.Services.Configure<PackValidationSettings>(
 			builder.Configuration.GetSection(PackValidationSettings.SectionName)
 		);
+		builder.Services.Configure<PackageJsonValidationSettings>(
+			builder.Configuration.GetSection(PackageJsonValidationSettings.SectionName)
+		);
 		builder.Services.Configure<PublishLocalNuGetSettings>(
 			builder.Configuration.GetSection(PublishLocalNuGetSettings.SectionName)
 		);
@@ -122,6 +125,7 @@ static class BuildPipeline
 			.AddModule<CleanArtifactsModule>()
 			.AddModule<VersionModule>()
 			.AddModule<ReportEligibilityModule>()
+			.AddModule<ValidatePackageJsonModule>()
 			.AddModule<RestoreModule>()
 			.AddModule<BuildModule>()
 			.AddModule<LintModule>()

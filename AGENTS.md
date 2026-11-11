@@ -28,6 +28,8 @@ This file is the primary instruction set for human and AI agents working in this
   - `docs/wiki/Release-Flow.md` — versioning, branch models, and release strategy.
   - `docs/wiki/Release-Models.md` — the three release trigger models, as raw Mermaid source.
   - `docs/wiki/Local-Development.md` — `just` recipes, `release-explain`, simulation, and the local rehearsal.
+  - `docs/wiki/Pack-Validation.md` — the `.nupkg`/`.snupkg` content rules.
+  - `docs/wiki/Package-Json-Validation.md` — the root `package.json` profiles, the `PKG0nn` rules, and `package-validate`.
   - `docs/wiki/Net-11.md` — supported runtimes (and the .NET 8/9 removal) and the .NET 11 feature evaluation.
   - `docs/wiki/Migration-*.md` — per-consumer migration guides.
 - `README.md` — user-facing overview and minimal consumer setup.
@@ -42,6 +44,7 @@ The developer entry points are the `just` recipes; the .NET SDK and `just` are r
 - `just test` / `just test-unit` — run tests under `src/tests`. CI and `just test` both run **everything**: `Build:TestFilter` in `purview-build.json` is `/*/*/*/*/`. `just test-unit` narrows to the unit suites for a faster local loop.
 - `just test-eligibility` — the eligibility and config-resolution suites only.
 - `just release-matrix` / `just config-matrix` — run every scenario through the real CLI. **Run both before any change to release or configuration behaviour**; they need no secrets and no network.
+- `just package-matrix` — run every `package.json` validation scenario through the real CLI. Run it before any change to the `PKG0nn` rules; it needs no secrets and no network.
 - `just release-explain` / `just release-simulate <ref> <version>` — explain the release decision, mutating nothing.
 - `just lint-yaml` — `actionlint` over the workflow files (skipped with a note when not installed).
 - `just lint-check` / `just lint-fix` — CSharpier (via local tool manifest `.config/dotnet-tools.json`).
@@ -64,7 +67,7 @@ CI builds with `--warnaserror`.
 
 - **Versioning**: the single source of truth is the `version` field in `package.json`. `VersionModule` resolves it once into an ordered set of release units; every downstream module reads that result and **never recomputes a version**. `Version:Strictness` defaults to `NuGet`, which accepts four-part versions — two consuming repositories ship them, so do not tighten this default.
 - **Eligibility ownership**: the tool *evaluates* release eligibility and reports it; the workflow *decides* and sets `Release__Mode`. The tool must never silently decline to release when asked to. `ReportEligibilityModule` is category `Build` and every failure path in it is a warning.
-- **Rule IDs are permanent**: never renumber or repurpose a `REL0nn`.
+- **Rule IDs are permanent**: never renumber or repurpose a `REL0nn` or a `PKG0nn`.
 - **This repository builds itself and never references its own released package.** The `Justfile` runs `.tools/local/Purview.Build`, published from the working tree; `ci.yml` and `release.yml` pack from source and install with `--source artifacts` (not `--add-source`, which leaves nuget.org able to satisfy an already-shipped version); `Purview.Build` is absent from `.config/dotnet-tools.json`. `SelfHostingTests` enforces all three. The reusable workflows and the composite action are the opposite case — they install the published tool for consuming repositories and must keep doing so.
 - **GitHub Packages is additive and opt-in.** Consuming from `https://nuget.pkg.github.com/<owner>/index.json` is automatic for every repository using the shared action/workflows; publishing to it is controlled only by the caller repository's `PURVIEW_PUBLISH_GITHUB_PACKAGES` variable, which the release entry points map onto `NuGet:GitHubPackages:Enabled`. Never make publication automatic, never make it a replacement for NuGet.org, and never put a PAT in the shared path for publishing: publication uses `GITHUB_TOKEN` with `packages: write`. Consumption falls back to `GITHUB_TOKEN` and may use the optional, read-only organisation secret `PURVIEW_PACKAGES_READ_TOKEN` (`read:packages` only) for repositories that should read every package without per-package Actions-access grants. NuGet.org publication and `Release:Mode` semantics must not change.
 - **One source-setup implementation.** `actions/nuget-sources/` is the only place that registers the organisation feed. `purview-build.yml`, `purview-release.yml`, and both composite actions call it; `ci.yml` and `release.yml` call it from `./` to dogfood it. It writes the runner's user-level NuGet configuration (never a committed `nuget.config`) and stores only a macro — `%GITHUB_TOKEN%`, or `%PURVIEW_NUGET_TOKEN%` when the optional organisation read token is used.
@@ -123,6 +126,7 @@ npx skills add purview-dev/build
 | `skills/purview-build-configuration/` | where `purview-build.json` is found, precedence, every setting, the secrets |
 | `skills/purview-build-pipeline/` | what each module does, its dependencies, and why it was skipped |
 | `skills/purview-build-pack-validation/` | the package rules, the target-framework token, and `RequireExplicitContent` |
+| `skills/purview-build-package-json/` | the root `package.json` profiles, the `PKG0nn` rules, and `package-validate` |
 | `skills/purview-build-release-eligibility/` | the `REL0nn` rules, the built-in policies, and the three release models |
 
 Every skill carries the `purview-build` prefix. Skills install into one flat directory per agent,

@@ -1,4 +1,5 @@
 using Purview.Build.Configuration;
+using Purview.Build.PackageJson;
 using Purview.Build.Release;
 
 var commandLine = ToolCommandLine.Parse(args);
@@ -36,6 +37,20 @@ try
 		// release-explain always exits 0: it reports a decision, it does not act on one. The
 		// decision's own exit code is in the report, for the caller to act on.
 		return 0;
+	}
+
+	if (commandLine.Command == ToolCommand.PackageValidate)
+	{
+		var configuration = ConfigurationChain.Build(startup, commandLine.PipelineArguments);
+		var report = PackageJsonValidationRunner.Run(configuration, startup.RepositoryRoot);
+
+		// Unlike release-explain this is a gate, so it exits non-zero when it fails: that is the
+		// whole point of calling it. The report carries the same exit code for a caller that reads it.
+		CLIConsole.WriteRaw(
+			commandLine.Format == OutputFormat.Json ? report.ToJson() : PackageJsonValidationReportText.Render(report)
+		);
+
+		return report.ExitCode;
 	}
 
 	// Identify the tool up front, so CI job logs and local runs show which build tool executed the

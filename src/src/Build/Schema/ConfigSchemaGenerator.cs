@@ -37,6 +37,7 @@ static class ConfigSchemaGenerator
 	[
 		(BuildSettings.SectionName, typeof(BuildSettings)),
 		(PackValidationSettings.SectionName, typeof(PackValidationSettings)),
+		(PackageJsonValidationSettings.SectionName, typeof(PackageJsonValidationSettings)),
 		(NuGetSettings.SectionName, typeof(NuGetSettings)),
 		(PublishLocalNuGetSettings.SectionName, typeof(PublishLocalNuGetSettings)),
 		(GitHubSettings.SectionName, typeof(GitHubSettings)),

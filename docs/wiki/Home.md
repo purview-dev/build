@@ -24,6 +24,7 @@ The same implementation is available three ways:
 - [Configuration Reference](Configuration-Reference.md)
 - [Pipeline Modules](Pipeline-Modules.md)
 - [Pack Validation](Pack-Validation.md)
+- [package.json Validation](Package-Json-Validation.md)
 - [Release Flow](Release-Flow.md)
 - [Release Models](Release-Models.md)
 - [Local Development](Local-Development.md)

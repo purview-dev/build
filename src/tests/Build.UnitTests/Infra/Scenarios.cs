@@ -29,6 +29,9 @@ public static class Scenarios
 	public static ConfigScenarioFile ConfigResolution { get; } =
 		Load<ConfigScenarioFile>("config-resolution-scenarios.json");
 
+	public static PackageJsonScenarioFile PackageJson { get; } =
+		Load<PackageJsonScenarioFile>("package-json-scenarios.json");
+
 	static T Load<T>(string fileName)
 	{
 		var path = Path.Combine(FixturesDirectory, fileName);
@@ -147,4 +150,64 @@ public sealed record ExpectedConfig
 	public string? NearMissContains { get; init; }
 
 	public bool? UserConfigActive { get; init; }
+}
+
+public sealed record PackageJsonScenarioFile
+{
+	public IReadOnlyList<PackageJsonScenario> Scenarios { get; init; } = [];
+}
+
+/// <summary>
+/// One <c>package.json</c> validation case: the file's contents, the configuration the run resolves,
+/// and the findings the run must produce.
+/// </summary>
+/// <remarks>
+/// Both the TUnit suite and the <c>just package-matrix</c> recipe build the same settings and write
+/// the same file, so a mismatch means the shipped CLI and the in-process runner disagree.
+/// </remarks>
+public sealed record PackageJsonScenario
+{
+	public string Name { get; init; } = string.Empty;
+
+	public string Why { get; init; } = string.Empty;
+
+	public string Profile { get; init; } = "Auto";
+
+	public string ProjectType { get; init; } = "DotNet";
+
+	public bool PacksNuGetPackages { get; init; }
+
+	public bool RunTests { get; init; } = true;
+
+	public bool RunLint { get; init; } = true;
+
+	public IReadOnlyList<string> AdditionalRequiredFields { get; init; } = [];
+
+	public IReadOnlyList<string> DisabledRules { get; init; } = [];
+
+	public bool TreatWarningsAsErrors { get; init; }
+
+	/// <summary>The file's contents, used verbatim (an array is deliberately unreadable).</summary>
+	public JsonElement PackageJson { get; init; }
+
+	public ExpectedPackageJson Expected { get; init; } = new();
+
+	public override string ToString() => Name;
+}
+
+/// <summary>
+/// What a scenario must produce. The rule lists are rule IDs, not messages, so rewording a finding
+/// is not a fixture change.
+/// </summary>
+public sealed record ExpectedPackageJson
+{
+	public bool Succeeded { get; init; }
+
+	public int ExitCode { get; init; }
+
+	public string Profile { get; init; } = string.Empty;
+
+	public IReadOnlyList<string> Errors { get; init; } = [];
+
+	public IReadOnlyList<string> Warnings { get; init; } = [];
 }

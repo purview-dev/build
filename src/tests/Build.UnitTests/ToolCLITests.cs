@@ -19,6 +19,35 @@ public class ToolCLITests
 		await Assert.That(ToolInfo.HelpText).Contains("--help");
 		await Assert.That(ToolInfo.HelpText).Contains("Build__RunPack=false");
 		await Assert.That(ToolInfo.HelpText).Contains("PURVIEW_BUILD_STACKTRACE");
+		await Assert.That(ToolInfo.HelpText).Contains("release-explain");
+		await Assert.That(ToolInfo.HelpText).Contains("package-validate");
+	}
+
+	[Test]
+	public async Task ToolCommandLine_GivenThePackageValidateVerb_SelectsTheCommand()
+	{
+		var commandLine = ToolCommandLine.Parse(["package-validate", "--format=json"]);
+
+		await Assert.That(commandLine.Command).IsEqualTo(ToolCommand.PackageValidate);
+		await Assert.That(commandLine.Format).IsEqualTo(OutputFormat.Json);
+	}
+
+	[Test]
+	public async Task ToolCommandLine_GivenTheReleaseExplainVerb_SelectsTheCommand()
+	{
+		var commandLine = ToolCommandLine.Parse(["release-explain"]);
+
+		await Assert.That(commandLine.Command).IsEqualTo(ToolCommand.ReleaseExplain);
+	}
+
+	[Test]
+	public async Task ToolCommandLine_GivenAVerb_KeepsItOutOfThePipelineArguments()
+	{
+		// The configuration command-line provider accepts only --key=value forms, so a bare verb
+		// must never reach it.
+		var commandLine = ToolCommandLine.Parse(["package-validate", "--Build:RunPack=false"]);
+
+		await Assert.That(commandLine.PipelineArguments).IsEquivalentTo(["--Build:RunPack=false"]);
 	}
 
 	[Test]

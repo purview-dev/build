@@ -54,9 +54,11 @@ CleanArtifactsModule → RestoreModule → BuildModule → RunTestsModule ──
 CleanArtifactsModule → RestoreModule → LintModule                     │                                   └→ PublishGitHubPackagesModule ─┤
 CleanArtifactsModule → VersionModule ─────────────────────────────────┤                                                                    └→ CreateGitHubReleaseModule
                        VersionModule → ReportEligibilityModule        │
+                       VersionModule → ValidatePackageJsonModule      │
                                                                       │
-                                  (LintModule and ReportEligibilityModule
-                                   are not inputs to PackModule)
+                                  (LintModule, ReportEligibilityModule and
+                                   ValidatePackageJsonModule are not inputs
+                                   to PackModule)
 ```
 
 Explicit `[DependsOn]` edges:
@@ -66,6 +68,7 @@ Explicit `[DependsOn]` edges:
 - `LintModule` depends on `RestoreModule` (Web lint needs the dependencies installed by `bun install`; dotnet lint is unaffected beyond running after restore). **Nothing depends on `LintModule`** — it is a gate, not an input.
 - `RunTestsModule` depends on `BuildModule`.
 - `ReportEligibilityModule` depends on `VersionModule`. Nothing depends on it; it only reports.
+- `ValidatePackageJsonModule` depends on `VersionModule` and is skipped unless `PackageJson:Enabled` is true. Nothing depends on it either: like `LintModule` it is a gate, so enabling it can never reorder pack or publish. The same check is reachable as the standalone `package-validate` command, which builds no pipeline at all.
 - `PackModule` depends on `RunTestsModule` and `VersionModule`.
 - `ValidatePackModule` depends on `PackModule`.
 - `PublishNuGetModule` depends on `PackModule`, `ValidatePackModule`, and `RunTestsModule`.
