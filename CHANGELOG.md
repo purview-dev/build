@@ -48,6 +48,14 @@ release summarise what the commits recorded rather than what was written at the 
 
 ### Added
 
+- **`actions/dotnet-sdk`** — the one implementation of "install the SDK `global.json` pins", for any job
+  that runs `dotnet` and is not a call to a shared workflow. It reads `.sdk.version` from the caller's
+  `global.json`, falls back to its `dotnet-version` input (default `10.0.x`) only when nothing is pinned,
+  and exposes the resolved version as an output. `purview-build.yml`, this repository's `ci.yml` and
+  `release.yml` all call it, so the resolution cannot drift between them, and a consuming repository's
+  own jobs can call it instead of repeating the script. `actions/setup-dotnet`'s `global-json-file`
+  input is not a substitute: when it cannot install the pinned version it falls back to the LTS
+  channel, reports success, and leaves the job to fail at its first `dotnet` command.
 - `docs/wiki/Net-11.md` — the supported-runtime table, what the SDK already enables, and the .NET 11
   features evaluated per area with the decision and its reason.
 - `just publish-aot` — publishes the tool as a NativeAOT executable for the current platform and

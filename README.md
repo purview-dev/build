@@ -20,6 +20,12 @@ The same implementation is available three ways:
    `.../purview-release.yml` — thin `workflow_call` wrappers with structured inputs/secrets. The
    release workflow forwards to the action above and cannot use Trusted Publishing.
 
+Supporting composite actions are available to any job that needs the same behaviour outside a shared
+entry point: `actions/dotnet-sdk` (installs the SDK `global.json` pins, or its `dotnet-version` input
+when nothing is pinned), `actions/nuget-sources` (registers the organisation feed) and
+`actions/prune-github-packages` (mirror retention). Reference them as
+`purview-dev/build/actions/<name>@main`.
+
 ## Minimal repository setup (reusable workflow)
 
 The examples below reference the workflows at `@main`, so they always run the latest version of the workflow/action code. The `@ref` suffix is required for cross-repository references and resolves the workflow/action to a specific commit; there is no `@latest`. Pin a release tag (e.g. `@v0.2.0`) instead if you want reproducible workflow code.

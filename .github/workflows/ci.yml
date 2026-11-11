@@ -15,32 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # global.json pins the SDK this repository builds with, and every dotnet command resolves
-      # against it, so installing a different band fails the first command with "A compatible .NET
-      # SDK was not found". Resolve it here rather than repeating the version in two workflows.
-      # The fallback only applies if global.json ever stops pinning one.
-      - name: Resolve the .NET SDK version
-        id: resolve-sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          pinned=""
-          if [ -f global.json ]; then
-            pinned="$(jq -r '.sdk.version // empty' global.json)"
-          fi
-
-          if [ -n "$pinned" ]; then
-            echo "global.json pins $pinned; installing that."
-            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
-          else
-            echo "global.json pins no sdk.version; using the default (10.0.x)."
-            echo "dotnet-version=10.0.x" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
-        with:
-          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
+      # The SDK comes from `actions/dotnet-sdk`, dogfooded from the working tree: global.json pins it
+      # and every dotnet command resolves against it, so installing a different band fails the first
+      # command with "A compatible .NET SDK was not found". The fallback only applies if global.json
+      # ever stops pinning one.
+      - uses: ./actions/dotnet-sdk
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
@@ -119,29 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Resolve the .NET SDK version
-        id: resolve-sdk
-        shell: bash
-        # See the build job: global.json wins, and the fallback only applies if it pins nothing.
-        run: |
-          set -euo pipefail
-
-          pinned=""
-          if [ -f global.json ]; then
-            pinned="$(jq -r '.sdk.version // empty' global.json)"
-          fi
-
-          if [ -n "$pinned" ]; then
-            echo "global.json pins $pinned; installing that."
-            echo "dotnet-version=$pinned" >> "$GITHUB_OUTPUT"
-          else
-            echo "global.json pins no sdk.version; using the default (10.0.x)."
-            echo "dotnet-version=10.0.x" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
-        with:
-          dotnet-version: ${{ steps.resolve-sdk.outputs.dotnet-version }}
+      # See the build job: global.json wins, and the fallback only applies if it pins nothing.
+      - uses: ./actions/dotnet-sdk
 
       # The MSBuild SDK itself comes from the organisation feed, so this job restores just like the
       # build job does. Fork pull requests cannot read that feed and restore from NuGet.org instead.
