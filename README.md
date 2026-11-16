@@ -7,6 +7,8 @@
 
 Consuming repositories own configuration; they do not own pipeline source code. Version, paths, feature switches, and release-mode selection are per-repository.
 
+**Documentation:** [Build documentation](https://purview.dev/docs/build/)
+
 ## Delivery surfaces
 
 The same implementation is available three ways:
