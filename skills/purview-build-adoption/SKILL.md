@@ -46,6 +46,25 @@ jobs:
     secrets: inherit
 ```
 
+### Aspire AppHosts
+
+An AppHost on `Microsoft.NET.Sdk` + `Aspire.Hosting.AppHost` 17 needs the Aspire CLI before it builds;
+ASPIRE013 cannot be suppressed. Add `aspire-cli: true` to the `with:` block:
+
+```yaml
+    with:
+      aspire-cli: true
+```
+
+The workflow installs `Aspire.Cli` from the repository's `.config/aspire-version` (so the pin sits
+beside the `Aspire.Hosting.AppHost` version the AppHost resolves), runs `aspire setup`, and puts the
+tool on `PATH` before the build. `aspire-cli-version` overrides the file. A repository on the
+`Aspire.AppHost.Sdk` 13.6 form needs nothing — keep it that way, and do not set
+`AspireUseCliBundle=false` on a 17 AppHost.
+
+`actions/purview-release` declares no `aspire-cli` input: a release caller that builds these AppHosts
+installs the pinned CLI itself before the action runs, as `aspire-resourcekit` does.
+
 ## Release — the composite action
 
 Release runs as a **composite action**, not a reusable workflow. nuget.org validates the OIDC

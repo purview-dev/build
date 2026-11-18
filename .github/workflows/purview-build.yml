@@ -64,6 +64,20 @@ on:
           its documented probe order starting at the repository root.
         required: false
         type: string
+      aspire-cli:
+        description: >-
+          Install the Aspire CLI and run `aspire setup` before the build. Required by an AppHost that
+          uses Microsoft.NET.Sdk with Aspire.Hosting.AppHost 17, where ASPIRE013 makes the CLI bundle a
+          hard build requirement that cannot be suppressed.
+        required: false
+        default: false
+        type: boolean
+      aspire-cli-version:
+        description: >-
+          Aspire CLI version to install. When omitted, it is read from the consuming repository's
+          `.config/aspire-version`, so the repository pins the CLI rather than the workflow.
+        required: false
+        type: string
     secrets:
       NUGET_APIKEY:
         required: false
@@ -99,6 +113,33 @@ jobs:
       - uses: purview-dev/build/actions/dotnet-sdk@main
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
+
+      # The CLI installs the DCP/dashboard bundle the AppHost's Aspire.Hosting package selects, so the
+      # version is the consuming repository's pin, not a floating default. Installed after the SDK
+      # because it is a dotnet global tool and before the build because ASPIRE013 fails without it.
+      - name: Install Aspire CLI
+        if: inputs.aspire-cli
+        shell: bash
+        env:
+          INPUT_ASPIRE_CLI_VERSION: ${{ inputs.aspire-cli-version }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$INPUT_ASPIRE_CLI_VERSION" ]; then
+            if [ ! -f .config/aspire-version ]; then
+              echo "::error title=Aspire CLI version unknown::aspire-cli was enabled, but .config/aspire-version does not exist and no aspire-cli-version input was supplied."
+              exit 1
+            fi
+            ASPIRE_CLI_VERSION="$(tr -d '[:space:]' < .config/aspire-version)"
+          else
+            ASPIRE_CLI_VERSION="$INPUT_ASPIRE_CLI_VERSION"
+          fi
+
+          dotnet tool install --global Aspire.Cli --version "$ASPIRE_CLI_VERSION" \
+            || dotnet tool update --global Aspire.Cli --version "$ASPIRE_CLI_VERSION"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          "$HOME/.dotnet/tools/aspire" setup
+          "$HOME/.dotnet/tools/aspire" --version
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
