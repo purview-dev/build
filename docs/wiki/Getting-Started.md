@@ -9,6 +9,28 @@
 
 Mixing a pinned old `@ref` with a floating `build-version` runs newer tool code through older workflow inputs.
 
+## Aspire AppHosts
+
+An AppHost built with `Microsoft.NET.Sdk` plus `Aspire.Hosting.AppHost` 17 needs the Aspire CLI before
+it builds: ASPIRE013 makes the CLI bundle a hard build requirement and cannot be suppressed. Enable
+`aspire-cli` and the shared workflow installs `Aspire.Cli` from the repository's
+`.config/aspire-version`, runs `aspire setup`, and puts the tool on `PATH` before the build.
+
+```yaml
+  build:
+    uses: purview-dev/build/.github/workflows/purview-build.yml@main
+    with:
+      aspire-cli: true
+    secrets: inherit
+```
+
+The version comes from `.config/aspire-version`, so the repository pins the CLI beside the
+`Aspire.Hosting.AppHost` version it resolves — a mismatch builds against a bundle the AppHost never
+selected. `aspire-cli-version` overrides the file for a one-off.
+
+The composite action has no such input: a release caller that builds these AppHosts installs the
+pinned CLI itself before `actions/purview-release` runs.
+
 ## Minimal repository setup (reusable workflow)
 
 ```yaml

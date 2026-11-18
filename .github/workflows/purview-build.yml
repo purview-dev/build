@@ -121,16 +121,18 @@ jobs:
         if: inputs.aspire-cli
         shell: bash
         env:
-          ASPIRE_CLI_VERSION: ${{ inputs.aspire-cli-version }}
+          INPUT_ASPIRE_CLI_VERSION: ${{ inputs.aspire-cli-version }}
         run: |
           set -euo pipefail
 
-          if [ -z "$ASPIRE_CLI_VERSION" ]; then
+          if [ -z "$INPUT_ASPIRE_CLI_VERSION" ]; then
             if [ ! -f .config/aspire-version ]; then
               echo "::error title=Aspire CLI version unknown::aspire-cli was enabled, but .config/aspire-version does not exist and no aspire-cli-version input was supplied."
               exit 1
             fi
             ASPIRE_CLI_VERSION="$(tr -d '[:space:]' < .config/aspire-version)"
+          else
+            ASPIRE_CLI_VERSION="$INPUT_ASPIRE_CLI_VERSION"
           fi
 
           dotnet tool install --global Aspire.Cli --version "$ASPIRE_CLI_VERSION" \
