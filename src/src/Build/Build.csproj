@@ -26,6 +26,11 @@
 		<!-- Tool packages carry their runtime from the publish output, so they need IsPublishable.
 	     The Purview SDK defaults it to false, which would leave the .nupkg without any tools/. -->
 		<IsPublishable>true</IsPublishable>
+		<!-- ModularPipelines, Octokit and other dependencies are not trim/AOT-annotated, so a NativeAOT
+		     publish reports one IL2104/IL3053 summary per such assembly. Purview.BuildSdk 2.1.0 applies
+		     TreatWarningsAsErrors to every project, which makes those summaries fail the publish. Only the
+		     third-party summaries are demoted: this project's own IL2xxx/IL3xxx diagnostics stay errors. -->
+		<WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
 	</PropertyGroup>
 
 	<!-- Tool packages are built from the publish directory, which includes the PDB. NuGet's symbol

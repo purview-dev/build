@@ -89,6 +89,15 @@ public sealed class CreateGitHubReleaseModule(
 		// latest stable release.
 		var isPrerelease = releaseSettings.Value.ShouldMarkPrerelease(unit.Version);
 
+		// GitHub accepts release assets only while the release is still a draft. A
+		// published release is immutable in a repository that enables release
+		// immutability, and the asset endpoint then rejects the upload outright
+		// ("Cannot upload assets to an immutable release"). A release that carries
+		// artifacts is therefore created as a draft, filled, and published once the
+		// artifacts are attached; a release with nothing to attach is published in
+		// one call, exactly as before.
+		var uploadArtifacts = releaseSettings.Value.UploadArtifacts;
+
 		var release = await context
 			.GitHub()
 			.Client.Repository.Release.Create(
@@ -98,17 +107,33 @@ public sealed class CreateGitHubReleaseModule(
 					Name = unit.Tag,
 					GenerateReleaseNotes = true,
 					Prerelease = isPrerelease,
+					Draft = uploadArtifacts,
 				}
 			);
 
 		context.Logger.LogInformation(
-			"Created GitHub release {Tag}{Prerelease}.",
+			"Created GitHub release {Tag}{Prerelease}{Draft}.",
 			unit.Tag,
-			isPrerelease ? " as a prerelease" : string.Empty
+			isPrerelease ? " as a prerelease" : string.Empty,
+			uploadArtifacts ? " as a draft" : string.Empty
 		);
 
-		if (releaseSettings.Value.UploadArtifacts)
+		if (uploadArtifacts)
+		{
 			await UploadArtifactsAsync(context, release, cancellationToken);
+
+			// Publishing is the last step, so a release is never observable without
+			// its artifacts.
+			release = await context
+				.GitHub()
+				.Client.Repository.Release.Edit(
+					repositoryId,
+					release.Id,
+					new ReleaseUpdate { Draft = false }
+				);
+
+			context.Logger.LogInformation("Published GitHub release {Tag}.", unit.Tag);
+		}
 
 		return release;
 	}
