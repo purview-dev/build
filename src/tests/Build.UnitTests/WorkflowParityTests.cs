@@ -64,7 +64,7 @@ public partial class WorkflowParityTests
 		".github/workflows/purview-build.yml",
 		".github/workflows/purview-release.yml",
 		".github/workflows/release.yml",
-		".github/actions/purview-build/action.yml",
+		"actions/purview-build/action.yml",
 		"actions/purview-release/action.yml",
 	];
 

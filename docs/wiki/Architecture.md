@@ -8,7 +8,7 @@ The implementation is the generalized `PipelineCLI` that originated in `sourcege
 
 The repository additionally exposes:
 
-- a **composite action** (`.github/actions/purview-build`) that installs a pinned `Purview.Build` version and runs it, for repositories embedding the build in their own jobs, and
+- a **composite action** (`actions/purview-build`) that installs a pinned `Purview.Build` version and runs it, for repositories embedding the build in their own jobs, and
 - a **composite action** for release (`actions/purview-release`) plus two **reusable workflows** (`purview-build.yml`, `purview-release.yml`) that wrap that logic with structured inputs/secrets, reducing a consumer to one `uses:` step plus `purview-build.json`. Release has to be the composite action: Trusted Publishing validates the caller's own workflow file, which a called workflow can never be.
 
 An MSBuild SDK remains a possible future companion for shared compile-time properties, analyzers, or package metadata. It should not own CI orchestration.
@@ -106,15 +106,23 @@ The shared CI surface is three documents plus two helper actions, all in this re
 | --- | --- |
 | `.github/workflows/purview-build.yml` | Reusable PR/build workflow |
 | `.github/workflows/purview-release.yml` | Reusable release workflow (evaluates eligibility, runs the pipeline, prunes the mirror) |
-| `.github/actions/purview-build/action.yml` | Composite action for callers that need surrounding steps |
+| `actions/purview-build/action.yml` | Composite action for callers that need surrounding steps |
 | `actions/nuget-sources/` | Registers nuget.org + the organisation GitHub Packages feed in the user-level NuGet configuration, with `%GITHUB_TOKEN%` credentials, and restores it on cleanup |
 | `actions/prune-github-packages/` | Deletes older versions of the repository's packages from the mirror after a successful release |
 
 The source configuration is implemented once and reused by every entry point. It runs **before** the
 `Purview.Build` tool install, so a pinned `build-version` that exists only on GitHub Packages is
 resolvable (and before the repository's first restore). This repository dogfoods both helper actions
-from `./.github/actions/...` in `ci.yml`/`release.yml`; consumers get them from
-`purview-dev/build/...@main`.
+from `./actions/...` in `ci.yml`/`release.yml`; consumers get them from
+`purview-dev/build/actions/...@main`.
+
+**Every action lives under `actions/`, never `.github/actions/`.** A cross-repository reference into a
+`.github/actions/` path does not resolve: the runner downloads the action repository and then fails the
+job at "Set up job" with *"Can't find 'action.yml', 'action.yaml' or 'Dockerfile' for action
+'purview-dev/build/.github/actions/<name>@main'"*, even though the manifest is present in the tree at
+the resolved SHA. `actions/purview-build` moved there for that reason; do not move it back. GitHub's
+own directories — `.github/workflows/` — are only ever referenced for the reusable workflows, where
+the path form is `owner/repo/.github/workflows/<file>@ref` and is supported.
 
 A reusable workflow cannot discover the ref it was invoked at (`uses:` does not accept expressions),
 so the helper actions are referenced at `@main`. A consumer that pins the reusable workflow to an old

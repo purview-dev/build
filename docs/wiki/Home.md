@@ -9,7 +9,7 @@ Consuming repositories own configuration (`purview-build.json`); they do not own
 The same implementation is available three ways:
 
 1. **`Purview.Build` dotnet tool** — NuGet package published to nuget.org. Run anywhere a .NET SDK exists (locally via `just`, in GitHub Actions, or another CI service).
-2. **Composite actions** `purview-dev/build/.github/actions/purview-build` (build) and
+2. **Composite actions** `purview-dev/build/actions/purview-build` (build) and
    `purview-dev/build/actions/purview-release` (release) — for repositories that want the pipeline
    embedded directly in one of their own jobs. Release must use the action: Trusted Publishing
    validates the caller's own workflow file.
@@ -57,7 +57,7 @@ CleanArtifacts ─┬→ Version ─┬─────────────�
 | Path | Purpose |
 | --- | --- |
 | `src/src/Build` | The packable `Purview.Build` tool: `Program.cs`, `Modules/`, `Settings/`, `Helpers/`, `appsettings.json` |
-| `.github/actions/purview-build` | The shared composite action |
+| `actions/purview-build` | The shared composite action |
 | `.github/workflows` | The reusable `purview-build.yml`/`purview-release.yml` and this repository's own `ci.yml`/`release.yml` |
 | `docs/wiki` | This wiki |
 | `purview-build.json` | This repository's own pipeline configuration (the tool dogfoods itself) |

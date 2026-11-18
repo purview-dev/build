@@ -23,7 +23,7 @@ public class NuGetSourceSetupTests
 	const string ReleaseAction = "actions/purview-release/action.yml";
 	const string SelfHostedBuild = ".github/workflows/ci.yml";
 	const string SelfHostedRelease = ".github/workflows/release.yml";
-	const string CompositeAction = ".github/actions/purview-build/action.yml";
+	const string CompositeAction = "actions/purview-build/action.yml";
 
 	[Test]
 	public async Task SourceAction_RegistersNuGetOrgAndTheOrganisationFeed()

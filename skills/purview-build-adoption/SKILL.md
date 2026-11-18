@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: purview-dev/build/.github/actions/purview-build@main
+      - uses: purview-dev/build/actions/purview-build@main
         env:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```
