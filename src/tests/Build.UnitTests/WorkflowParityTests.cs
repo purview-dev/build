@@ -516,15 +516,15 @@ public partial class WorkflowParityTests
 		// the manifest — "Unrecognized named-value: 'vars'" — while loading the action, before any step
 		// runs. actionlint only parses workflow files, so nothing else catches it, and the failure only
 		// appears when a consumer's release actually loads the action.
+		//
+		// Manifests are enumerated from `actions/` only. `.github/actions/` is not a place an action can
+		// be published from (see Actions_GivenTheGitHubActionsFolder_DeclareNoManifestThere), and asking
+		// for that path when it does not exist threw on a clean clone while an empty leftover directory
+		// kept the same run green locally.
 		var root = RepositoryRoot();
 		List<string> actions =
 		[
 			.. Directory.EnumerateFiles(Path.Combine(root, "actions"), "action.yml", SearchOption.AllDirectories),
-			.. Directory.EnumerateFiles(
-				Path.Combine(root, ".github", "actions"),
-				"action.yml",
-				SearchOption.AllDirectories
-			),
 		];
 
 		// Act
@@ -542,6 +542,34 @@ public partial class WorkflowParityTests
 				$"{string.Join(", ", offenders)} reference `vars` or `secrets` from a composite action. "
 					+ "GitHub has no such context there and fails to load the manifest. Pass the value in as "
 					+ "an input from the calling workflow."
+			);
+	}
+
+	[Test]
+	public async Task Actions_GivenTheGitHubActionsFolder_DeclareNoManifestThere()
+	{
+		// Arrange
+		// GitHub cannot resolve a cross-repository reference into `.github/actions/`: the runner
+		// downloads the action repository and then fails the job at "Set up job" with "Can't find
+		// 'action.yml', 'action.yaml' or 'Dockerfile' for action
+		// 'owner/repo/.github/actions/<name>@main'", even though the manifest is present at the resolved
+		// SHA. Every action this repository publishes therefore lives under `actions/`, where
+		// `owner/repo/actions/<name>@ref` resolves.
+		var root = RepositoryRoot();
+		var folder = Path.Combine(root, ".github", "actions");
+
+		// Act
+		var manifests = Directory.Exists(folder)
+			? Directory.GetFiles(folder, "action*.y*ml", SearchOption.AllDirectories)
+			: [];
+
+		// Assert
+		await Assert
+			.That(manifests.Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/')))
+			.IsEmpty()
+			.Because(
+				"a manifest under .github/actions cannot be referenced from another repository, so no "
+					+ "consumer could ever run it. Move it to actions/<name>/action.yml."
 			);
 	}
 
