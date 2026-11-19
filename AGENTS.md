@@ -4,7 +4,7 @@ This file is the primary instruction set for human and AI agents working in this
 
 ## What this repository is
 
-`Purview.Build` is the shared build/test/release system for the `purview-dev` organisation: a Generalized Modular Pipelines pipeline, packaged as a pinned .NET tool (`src/Purview.Build`) and exposed through a GitHub composite action (`.github/actions/purview-build`) and thin reusable workflows (`.github/workflows/purview-build.yml`, `purview-release.yml`). Consuming repositories own configuration (`purview-build.json`); they do not own pipeline code.
+`Purview.Build` is the shared build/test/release system for the `purview-dev` organisation: a Generalized Modular Pipelines pipeline, packaged as a pinned .NET tool (`src/Purview.Build`) and exposed through a GitHub composite action (`actions/purview-build`) and thin reusable workflows (`.github/workflows/purview-build.yml`, `purview-release.yml`). Consuming repositories own configuration (`purview-build.json`); they do not own pipeline code.
 
 ## Repository layout
 
@@ -12,7 +12,7 @@ This file is the primary instruction set for human and AI agents working in this
 - `src/tests/Build.UnitTests/` and `src/tests/Build.IntegrationTests/` — the test suites. TUnit categories come from the project-name suffix (the Purview SDK emits an assembly-level `[Category]`), so **never write a `[Category]` attribute by hand**: put a test in the project whose name carries the category you want.
 - `src/tests/fixtures/` — the declarative scenario matrices (`eligibility-scenarios.json`, `config-resolution-scenarios.json`) and the `release-explain` golden file. These drive both the TUnit suites and the `just` CLI matrices; a new rule or probe location means appending cases here, not writing test code.
 - `src/tests/scenarios/` — the shell runners behind `just release-matrix` / `just config-matrix`.
-- `.github/actions/purview-build/` and `.github/workflows/` — the shared build action and the reusable workflows.
+- `actions/purview-build/` and `.github/workflows/` — the shared build action and the reusable workflows.
 - `actions/purview-release/` — the one release implementation, a composite action. It must be a
   composite action rather than a reusable workflow: nuget.org validates the OIDC
   `job_workflow_ref` claim against the Trusted Publishing policy, and inside a called workflow that

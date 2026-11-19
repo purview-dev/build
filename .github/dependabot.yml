@@ -16,7 +16,7 @@ updates:
 
   # The composite action is a separate manifest location as far as Dependabot is concerned.
   - package-ecosystem: github-actions
-    directory: "/.github/actions/purview-build"
+    directory: "/actions/purview-build"
     schedule:
       interval: weekly
     open-pull-requests-limit: 3

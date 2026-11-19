@@ -14,10 +14,13 @@ Consuming repositories own configuration; they do not own pipeline source code. 
 The same implementation is available three ways:
 
 1. **`Purview.Build` dotnet tool** — NuGet package published to nuget.org. Run anywhere a .NET SDK exists (locally via `just`, in GitHub Actions, or another CI service).
-2. **Composite actions** `purview-dev/build/.github/actions/purview-build` (build) and
+2. **Composite actions** `purview-dev/build/actions/purview-build` (build) and
    `purview-dev/build/actions/purview-release` (release) — for repositories that want the pipeline
-   embedded directly in one of their own jobs. Release must use the action, not a reusable workflow,
-   because Trusted Publishing only matches the caller's own workflow file.
+   embedded directly in one of their own jobs. Both live under `actions/`, never `.github/actions/`:
+   a cross-repository reference into that path cannot be resolved, and every job using one fails at
+   "Set up job" with a missing `action.yml` that is plainly present in the tree (see Architecture).
+   Release must use the action, not a reusable workflow, because Trusted Publishing only matches the
+   caller's own workflow file.
 3. **Reusable workflows** `purview-dev/build/.github/workflows/purview-build.yml` and
    `.../purview-release.yml` — thin `workflow_call` wrappers with structured inputs/secrets. The
    release workflow forwards to the action above and cannot use Trusted Publishing.
@@ -164,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: purview-dev/build/.github/actions/purview-build@main
+      - uses: purview-dev/build/actions/purview-build@main
         env:
           Build__TestFilter: "/*/*/*/*[Category=Unit]"
 ```
