@@ -3,7 +3,7 @@
     "version": "11.0.100"
   },
   "msbuild-sdks": {
-    "Purview.BuildSdk": "2.1.0"
+    "Purview.BuildSdk": "2.2.1"
   },
   "test": {
     "runner": "Microsoft.Testing.Platform"
